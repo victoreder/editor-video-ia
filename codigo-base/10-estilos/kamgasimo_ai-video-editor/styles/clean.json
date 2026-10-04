@@ -1,0 +1,19 @@
+{
+  "id": "clean",
+  "name": "Clean premium",
+  "summary": "Sentence-case captions, smooth push-ins, few refined graphics, soft transitions, a soft bed, a light grade.",
+  "palette": { "bg": "#0B0C10", "panel": "#F5F5F2", "panel2": "#E9E8E3", "text": "#FFFFFF", "accent": "#2563EB", "key": "#FFFFFF", "c1": "#2563EB", "c2": "#0EA5E9", "c3": "#10B981", "c4": "#F59E0B", "ink": "#111827" },
+  "fonts": { "display": "Inter", "displayWeight": 800, "body": "Inter", "mono": "JetBrains Mono" },
+  "captions": { "preset": "clean", "case": "spoken", "maxWords": 5, "size": 0.058, "emphasisPerChunk": 1, "emojiEvery": 0 },
+  "camera": { "levels": [1.0, 1.08], "push": 0.04, "snapZoom": 1.1, "snapEvery": 12, "maxZoom": 1.12, "shake": false },
+  "transitions": { "set": ["slide", "dip", "zoom"], "minGap": 12, "duration": 0.4 },
+  "effects": [],
+  "graphics": { "coverage": [0.15, 0.35], "layouts": ["split", "overlay"], "motion": ["rise", "fade"] },
+  "maxStatic": 7,
+  "sfx": { "density": "low", "transition": ["swoosh"], "enter": ["click-soft"], "snap": null, "hook": [], "cta": "click-soft", "type": "typing", "glitch": null, "reveal": "chime" },
+  "music": { "mood": "calm", "intent": "calm minimal lo-fi, warm piano, soft beat, no vocals", "under": 16 },
+  "grade": "clean",
+  "hook": { "title": true, "textBehind": "never", "teaser": false },
+  "cta": { "text": "Follow for more", "icon": "arrow-right" },
+  "progress": false
+}

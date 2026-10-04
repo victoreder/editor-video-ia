@@ -1,0 +1,6 @@
+{
+  "id": "minimal",
+  "name": "Minimal",
+  "summary": "The clean cut with simple captions and punch-ins; no graphics, transitions or music. Needs no rendering engine.",
+  "engine": false
+}

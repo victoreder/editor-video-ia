@@ -1,0 +1,19 @@
+{
+  "id": "cinematic",
+  "name": "Cinematic",
+  "summary": "Film grade with grain and vignette, slow moves, lower thirds, light leaks, ambient music.",
+  "palette": { "bg": "#07080A", "panel": "#101114", "panel2": "#07080A", "text": "#F4F1EA", "accent": "#E8B86D", "key": "#E8B86D", "c1": "#E8B86D", "c2": "#C2410C", "c3": "#94A3B8", "c4": "#F4F1EA" },
+  "fonts": { "display": "Playfair Display", "displayWeight": 700, "body": "Inter", "mono": "JetBrains Mono" },
+  "captions": { "preset": "cinematic", "case": "spoken", "maxWords": 6, "size": 0.048, "emphasisPerChunk": 0, "emojiEvery": 0 },
+  "camera": { "levels": [1.0, 1.06], "push": 0.07, "snapZoom": null, "snapEvery": 0, "maxZoom": 1.1, "shake": false },
+  "transitions": { "set": ["light-leak", "dip", "zoom"], "minGap": 14, "duration": 0.6 },
+  "effects": [],
+  "graphics": { "coverage": [0.08, 0.25], "layouts": ["overlay", "cutaway"], "motion": ["fade", "rise"] },
+  "maxStatic": 9,
+  "sfx": { "density": "low", "transition": ["whoosh-long"], "enter": [], "snap": null, "hook": ["impact-swell"], "cta": null, "type": null, "glitch": null, "reveal": "chime" },
+  "music": { "mood": "cinematic", "intent": "cinematic ambient, emotional strings and piano, slow build, no vocals", "under": 15 },
+  "grade": "film",
+  "hook": { "title": true, "textBehind": "when-room", "teaser": false },
+  "cta": null,
+  "progress": false
+}

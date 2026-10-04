@@ -1,0 +1,19 @@
+{
+  "id": "dynamic",
+  "name": "Dynamic creator",
+  "summary": "Bold keyword captions, a visual change every 2-4 s, snap zooms, whip and zoom transitions at topic changes, dense sound design, an upbeat bed.",
+  "palette": { "bg": "#0A0A18", "panel": "#15123A", "panel2": "#0E0A24", "text": "#FFFFFF", "accent": "#7C5CFF", "key": "#FFD400", "c1": "#22D3EE", "c2": "#F472B6", "c3": "#34D399", "c4": "#FB923C" },
+  "fonts": { "display": "Montserrat", "displayWeight": 900, "body": "Inter", "mono": "JetBrains Mono" },
+  "captions": { "preset": "bold-pop", "case": "upper", "maxWords": 3, "size": 0.082, "emphasisPerChunk": 1, "emojiEvery": 8 },
+  "camera": { "levels": [1.0, 1.12, 1.2], "push": 0.05, "snapZoom": 1.22, "snapEvery": 5, "maxZoom": 1.34, "shake": true },
+  "transitions": { "set": ["whip", "zoom", "flash", "glitch"], "minGap": 8, "duration": 0.24 },
+  "effects": ["shake", "flash-hit", "rgb-pulse"],
+  "graphics": { "coverage": [0.4, 0.85], "layouts": ["split", "overlay", "cutaway", "pip"], "motion": ["pop", "slam", "rise"] },
+  "maxStatic": 4,
+  "sfx": { "density": "high", "transition": ["whoosh", "swoosh"], "enter": ["pop"], "snap": "impact", "hook": ["riser", "impact"], "cta": "click", "type": "typing", "glitch": "glitch", "reveal": "sparkle" },
+  "music": { "mood": "upbeat", "intent": "upbeat energetic modern electronic, driving beat, no vocals", "under": 13 },
+  "grade": "punchy",
+  "hook": { "title": true, "textBehind": "when-room", "teaser": false },
+  "cta": { "text": "FOLLOW FOR MORE", "icon": "plus" },
+  "progress": true
+}
