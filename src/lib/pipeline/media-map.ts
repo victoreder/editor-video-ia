@@ -13,7 +13,8 @@ export function mediaKeys(plan: EditPlan): string[] {
     if (o.props.matteSrc) keys.add(o.props.matteSrc); // recorte da pessoa
   }
   if (plan.audio.music?.src) keys.add(plan.audio.music.src);
-  return [...keys].filter((k) => !/^(https?:|data:|blob:|builtin:)/.test(k));
+  // URLs entram também: no Blob as chaves SÃO URLs (privadas → precisam de link assinado)
+  return [...keys].filter((k) => !/^(data:|blob:|builtin:)/.test(k));
 }
 
 export function mediaMap(plan: EditPlan, toUrl: (key: string) => string): Record<string, string> {
@@ -21,3 +22,21 @@ export function mediaMap(plan: EditPlan, toUrl: (key: string) => string): Record
 }
 
 export const publicMediaMap = (plan: EditPlan, storage: Storage) => mediaMap(plan, (k) => storage.publicUrl(k));
+
+/**
+ * Mapa do editor (navegador): o vídeo do apresentador aponta para a prévia leve
+ * (quando existe) e, no Blob privado, já vem com o link assinado — o player baixa
+ * direto do Blob, sem um desvio pela função a cada pedaço do vídeo.
+ */
+export async function browserMediaMap(plan: EditPlan, storage: Storage, previews: Record<string, string> = {}): Promise<Record<string, string>> {
+  const byProxy = new Map(plan.sources.filter((s) => previews[s.id]).map((s) => [s.proxyKey ?? s.key, previews[s.id]]));
+  const signed = 'signedUrl' in storage ? (storage as Storage & {signedUrl(u: string): Promise<string>}) : null;
+  const out: Record<string, string> = {};
+  await Promise.all(
+    mediaKeys(plan).map(async (k) => {
+      const src = byProxy.get(k) ?? k;
+      out[k] = signed ? await signed.signedUrl(src).catch(() => storage.publicUrl(src)) : storage.publicUrl(src);
+    }),
+  );
+  return out;
+}

@@ -4,7 +4,7 @@ import {useRouter} from 'next/navigation';
 import {Player, type PlayerRef} from '@remotion/player';
 import {Reel} from '@/remotion/Reel';
 import {planDurationFrames} from '@/lib/plan/timeline';
-import {api, getPlan, type ProjectView as PV} from '@/lib/client/api';
+import {api, getPlan, runProjectJob, type ProjectView as PV} from '@/lib/client/api';
 import type {Job} from '@/lib/adapters/db/types';
 import type {EditPlan} from '@/lib/plan/schema';
 import {Editor} from '@/editor/Editor';
@@ -48,13 +48,41 @@ export default function ProjectView({id}: {id: string}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
+  const [previewMsg, setPreviewMsg] = useState<string | null>(null);
+  const previewStarted = useRef(false);
+  /** troca só as URLs de mídia (sem mexer no plano que está sendo editado) */
+  const refreshMedia = useCallback(async (v: string) => {
+    const r = await getPlan(id, v);
+    useEditor.getState().setMedia({...useEditor.getState().media, ...r.media});
+    return r;
+  }, [id]);
+
   const openVariant = useCallback(async (v: string) => {
-    const {plan, media} = await getPlan(id, v);
+    const {plan, media, missingPreview} = await getPlan(id, v);
     useEditor.getState().init(id, v, plan, media);
     setVariant(v);
     setComparing(false);
     await api(`/api/projects/${id}`, {method: 'PATCH', json: {activeVariant: v}}).catch(() => undefined);
-  }, [id]);
+    // projeto processado antes da prévia leve: gera agora, em segundo plano, e troca o vídeo quando ficar pronta
+    if (missingPreview && !previewStarted.current) {
+      previewStarted.current = true;
+      setPreviewMsg('Gerando prévia leve para o vídeo carregar rápido…');
+      runProjectJob(id, 'preview', {}, (j) => setPreviewMsg(j.status === 'done' ? null : `Gerando prévia leve… ${j.progress}%`))
+        .then(async (j) => {
+          if (j.status === 'done') await refreshMedia(v);
+          setPreviewMsg(j.status === 'done' ? null : `Prévia leve falhou: ${j.error ?? ''}`);
+        })
+        .catch(() => setPreviewMsg(null));
+    }
+  }, [id, refreshMedia]);
+
+  // os links assinados do Blob expiram: renova enquanto o editor está aberto (o link só
+  // muda quando o token gira, então o player não recarrega à toa)
+  useEffect(() => {
+    if (!variant) return;
+    const t = setInterval(() => void refreshMedia(variant).catch(() => undefined), 15 * 60e3);
+    return () => clearInterval(t);
+  }, [variant, refreshMedia]);
 
   useEffect(() => {
     if (!data || data.project.status !== 'ready' || comparing || variant) return;
@@ -151,12 +179,15 @@ export default function ProjectView({id}: {id: string}) {
   if (comparing) return <Compare id={id} variants={project.variants} onPick={openVariant} onBack={() => router.push('/')} />;
   if (!variant || loadedVariant !== variant) return <Centered><p className="text-muted">Abrindo o editor…</p></Centered>;
   return (
-    <Editor
-      projectName={project.name}
-      variants={project.variants}
-      onSwitchVariant={(v) => (v === variant ? undefined : openVariant(v))}
-      onBack={() => router.push('/')}
-    />
+    <>
+      <Editor
+        projectName={project.name}
+        variants={project.variants}
+        onSwitchVariant={(v) => (v === variant ? undefined : openVariant(v))}
+        onBack={() => router.push('/')}
+      />
+      {previewMsg && <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-panel2 px-4 py-2 text-xs shadow-lg">{previewMsg}</div>}
+    </>
   );
 }
 

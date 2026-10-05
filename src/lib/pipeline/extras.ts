@@ -147,7 +147,7 @@ export async function thumbnailJob(job: Job, report: Reporter) {
     if (storage instanceof LocalStorage) {
       server = await startStaticServer(path.join(config.dataDir, 'storage'));
       const s = server;
-      toUrl = (k) => `${s.url}/${k.split('/').map(encodeURIComponent).join('/')}`;
+      toUrl = (k) => (/^https?:/.test(k) ? k : `${s.url}/${k.split('/').map(encodeURIComponent).join('/')}`);
     }
     await report(20, 'Escolhendo o melhor frame e renderizando a capa');
     const out = path.join(work, 'cover.jpg');

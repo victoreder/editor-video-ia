@@ -106,9 +106,16 @@ export class VercelBlobStorage implements Storage {
   async signedUrl(url: string): Promise<string> {
     if (!isPrivateBlob(url)) return url;
     const {issueSignedToken, presignUrl} = await import('@vercel/blob');
-    if (!this.signer || Date.now() > this.signerUntil - 15 * 60e3) {
-      this.signerUntil = Date.now() + 2 * 3600e3;
-      this.signer = issueSignedToken({operations: ['get', 'head'], validUntil: this.signerUntil});
+    // token de 8 h renovado quando faltam 3 h: todo link entregue vale pelo menos 3 h
+    // e é o mesmo entre chamadas (o player não recarrega o vídeo a cada salvamento)
+    if (!this.signer || Date.now() > this.signerUntil - 3 * 3600e3) {
+      const until = Date.now() + 8 * 3600e3;
+      this.signerUntil = until;
+      // se o Blob recusar a validade longa, usa a padrão dele (1 h) e renova antes
+      this.signer = issueSignedToken({operations: ['get', 'head'], validUntil: until}).catch(() => {
+        this.signerUntil = Date.now() + 40 * 60e3 + 3 * 3600e3; // renova aos 40 min de 1 h
+        return issueSignedToken({operations: ['get', 'head']});
+      });
       this.signer.catch(() => (this.signer = null));
     }
     const pathname = decodeURIComponent(new URL(url).pathname.slice(1));

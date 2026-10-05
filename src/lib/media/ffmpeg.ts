@@ -112,6 +112,25 @@ export async function makeProxy(input: string, output: string, duration: number,
   );
 }
 
+/**
+ * Prévia leve só para o editor (o render usa o proxy em qualidade cheia): lado maior
+ * 960 px, CRF 28, keyframe a cada 0,5 s (pular entre cortes é instantâneo) e
+ * faststart (toca antes de baixar tudo). ~10x menor que o proxy.
+ */
+export async function makePreview(input: string, output: string, duration: number, onProgress?: (f: number) => void) {
+  await run(
+    FFMPEG,
+    [
+      '-y', '-i', input,
+      '-vf', "scale='if(gt(iw,ih),min(960,iw),-2)':'if(gt(iw,ih),-2,min(960,ih))',format=yuv420p",
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-g', '15', '-keyint_min', '15', '-sc_threshold', '0',
+      '-c:a', 'aac', '-b:a', '96k', '-ac', '2',
+      '-movflags', '+faststart', output,
+    ],
+    progressFrom(duration, onProgress),
+  );
+}
+
 /** áudio mono 16 kHz em MP3 (pequeno, aceito por todas as APIs de transcrição) */
 export async function extractAudio(input: string, output: string) {
   await run(FFMPEG, ['-y', '-i', input, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'libmp3lame', '-b:a', '64k', output]);

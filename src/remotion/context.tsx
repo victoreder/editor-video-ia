@@ -22,6 +22,8 @@ export function useReel(): ReelCtx {
 
 export const makeResolver = (media: Record<string, string> | undefined) => (key: string | undefined) => {
   if (!key) return undefined;
+  // o mapa vale também para chaves que já são URLs (Blob: link assinado / prévia leve)
+  if (media?.[key]) return media[key];
   if (/^(https?:|data:|blob:)/.test(key)) return key;
   // arquivos que vêm com o app (public/): trilhas e sons sintetizados
   if (key.startsWith('builtin:')) return staticFile(key.slice('builtin:'.length));

@@ -133,7 +133,7 @@ export async function renderJob(job: Job, report: Reporter, log: (s: string) => 
     if (storage instanceof LocalStorage) {
       server = await startStaticServer(path.join(config.dataDir, 'storage'));
       const s = server;
-      toUrl = (k) => `${s.url}/${k.split('/').map(encodeURIComponent).join('/')}`;
+      toUrl = (k) => (/^https?:/.test(k) ? k : `${s.url}/${k.split('/').map(encodeURIComponent).join('/')}`);
     }
     const exports: ExportItem[] = [];
     for (const [i, format] of formats.entries()) {
