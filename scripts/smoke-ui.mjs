@@ -14,7 +14,7 @@ page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 await page.goto(BASE);
-await page.getByRole('button', {name: '+ Novo vídeo'}).click();
+await page.getByRole('link', {name: 'Novo vídeo'}).first().click();
 await page.locator('input[type=file][accept="video/*"]').setInputFiles(video);
 await page.getByPlaceholder('Meu reel').fill('Teste UI');
 await page.getByPlaceholder('Cole aqui o texto').fill(SCRIPT);

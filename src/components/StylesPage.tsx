@@ -5,6 +5,8 @@ import {useEffect, useRef, useState} from 'react';
 import {api, uploadToPrefix, waitJob} from '@/lib/client/api';
 import type {StyleConfig} from '@/lib/plan/schema';
 import type {Job} from '@/lib/adapters/db/types';
+import {AppShell, Page, PageHeader} from './ui/AppShell';
+import {Icon, Spinner} from './ui/Icon';
 
 type Data = {builtin: StyleConfig[]; custom: StyleConfig[]};
 
@@ -15,47 +17,60 @@ export default function StylesPage() {
   useEffect(() => {
     load();
   }, []);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [editing === null]);
+  if (editing)
+    return (
+      <AppShell>
+        <Page narrow>
+          <PageHeader crumbs={[{href: '/styles', label: 'Estilos'}]} title={editing.id === 'novo' ? 'Novo estilo' : 'Editar estilo'} subtitle={editing.origin ?? 'Ajuste a receita da edição. Vale para os próximos vídeos que usarem este estilo.'} />
+          <Editor
+            style={editing}
+            onClose={() => setEditing(null)}
+            onSaved={() => {
+              setEditing(null);
+              load();
+            }}
+          />
+        </Page>
+      </AppShell>
+    );
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <header className="mb-6 flex items-center gap-3">
-        <a className="btn-ghost" href="/">
-          ←
-        </a>
-        <div>
-          <h1 className="text-2xl font-extrabold">Meu estilo</h1>
-          <p className="text-sm text-muted">Um estilo é a "receita" da edição: cores, fontes, legenda, câmera, ritmo, gráficos, sons e música.</p>
-        </div>
-      </header>
-      <FromReference onDone={(s) => {
-        load();
-        setEditing(s);
-      }} />
-      {!data ? (
-        <p className="text-muted">Carregando…</p>
-      ) : (
-        <>
-          <h2 className="mb-3 mt-8 font-bold">Meus estilos</h2>
-          {data.custom.length === 0 && <p className="text-sm text-muted">Nenhum ainda — copie de um reel acima ou duplique um estilo pronto.</p>}
-          <Grid styles={data.custom} onEdit={setEditing} onDelete={async (s) => {
-            if (!confirm(`Apagar "${s.name}"?`)) return;
-            await api(`/api/styles?id=${s.id}`, {method: 'DELETE'});
+    <AppShell>
+      <Page>
+        <PageHeader title="Estilos" subtitle='Um estilo é a "receita" da edição: cores, fontes, legenda, câmera, ritmo, gráficos, sons e música.' />
+        <FromReference
+          onDone={(s) => {
             load();
-          }} />
-          <h2 className="mb-3 mt-8 font-bold">Prontos</h2>
-          <Grid styles={data.builtin} onEdit={(s) => setEditing({...structuredClone(s), id: 'novo', name: `${s.name} (meu)`, origin: `cópia de ${s.name}`})} editLabel="Duplicar e editar" />
-        </>
-      )}
-      {editing && (
-        <Editor
-          style={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            load();
+            setEditing(s);
           }}
         />
-      )}
-    </main>
+        {!data ? (
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton h-40 rounded-2xl" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <h2 className="section-title mt-10">Meus estilos</h2>
+            {data.custom.length === 0 && <p className="surface p-4 text-sm text-muted">Nenhum ainda — copie de um reel acima ou duplique um estilo pronto.</p>}
+            <Grid
+              styles={data.custom}
+              onEdit={setEditing}
+              onDelete={async (s) => {
+                if (!confirm(`Apagar "${s.name}"?`)) return;
+                await api(`/api/styles?id=${s.id}`, {method: 'DELETE'});
+                load();
+              }}
+            />
+            <h2 className="section-title mt-10">Prontos</h2>
+            <Grid styles={data.builtin} onEdit={(s) => setEditing({...structuredClone(s), id: 'novo', name: `${s.name} (meu)`, origin: `cópia de ${s.name}`})} editLabel="Duplicar e editar" />
+          </>
+        )}
+      </Page>
+    </AppShell>
   );
 }
 
@@ -63,7 +78,7 @@ function Grid({styles, onEdit, onDelete, editLabel = 'Editar'}: {styles: StyleCo
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {styles.map((s) => (
-        <div key={s.id} className="card p-4">
+        <div key={s.id} className="card flex flex-col p-4 transition hover:border-line2">
           <div className="mb-2 flex gap-1">
             {[s.palette.key, s.palette.accent, s.palette.bg, s.palette.panel].map((c, i) => (
               <span key={i} className="h-5 w-5 rounded-full border border-white/20" style={{background: c}} />
@@ -72,13 +87,13 @@ function Grid({styles, onEdit, onDelete, editLabel = 'Editar'}: {styles: StyleCo
           <div className="font-bold">{s.name}</div>
           <p className="mt-1 line-clamp-3 text-xs text-muted">{s.summary}</p>
           {s.origin && <p className="mt-1 text-[11px] text-brand2">{s.origin}</p>}
-          <div className="mt-3 flex gap-2">
-            <button className="btn-ghost text-xs" onClick={() => onEdit(s)}>
-              {editLabel}
+          <div className="mt-auto flex gap-2 pt-4">
+            <button className="btn-ghost btn-sm" onClick={() => onEdit(s)}>
+              <Icon name={onDelete ? 'sliders' : 'plus'} size={13} /> {editLabel}
             </button>
             {onDelete && (
-              <button className="btn-ghost text-xs" onClick={() => onDelete(s)}>
-                Apagar
+              <button className="btn-icon h-7 w-7 hover:!text-danger" onClick={() => onDelete(s)} title="Apagar">
+                <Icon name="trash" size={14} />
               </button>
             )}
           </div>
@@ -112,17 +127,21 @@ function FromReference({onDone}: {onDone: (s: StyleConfig) => void}) {
   };
   const busy = upload !== null || (job !== null && job.status !== 'done' && job.status !== 'error' && job.status !== 'cancelled');
   return (
-    <div className="card p-5">
-      <h2 className="mb-1 font-bold">Copiar o estilo de um reel</h2>
-      <p className="mb-4 text-sm text-muted">Suba um reel que você admira. O sistema mede o ritmo dos cortes e as cores, e a IA (com visão) analisa legendas, zooms, gráficos e transições para criar um estilo novo.</p>
+    <div className="card relative overflow-hidden p-6">
+      <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/20 blur-3xl" />
+      <div className="mb-1 flex items-center gap-2">
+        <Icon name="wand" className="text-brand" />
+        <h2 className="font-bold">Copiar o estilo de um reel</h2>
+      </div>
+      <p className="mb-5 max-w-2xl text-sm text-muted">Suba um reel que você admira. O sistema mede o ritmo dos cortes e as cores, e a IA (com visão) analisa legendas, zooms, gráficos e transições para criar um estilo novo.</p>
       <div className="flex flex-wrap items-center gap-2">
         <input ref={ref} type="file" accept="video/*" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <button className="btn-ghost" onClick={() => ref.current?.click()}>
-          {file ? file.name : 'Escolher o reel…'}
+        <button className="btn-ghost max-w-64" onClick={() => ref.current?.click()}>
+          <Icon name={file ? 'film' : 'upload'} /> <span className="truncate">{file ? file.name : 'Escolher o reel…'}</span>
         </button>
         <input className="input max-w-64" placeholder="Nome do estilo" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn-primary" disabled={!file || busy} onClick={start}>
-          Analisar e criar estilo
+          {busy ? <Spinner /> : <Icon name="sparkles" />} Analisar e criar estilo
         </button>
       </div>
       {upload !== null && <p className="mt-3 text-sm text-muted">Enviando… {Math.round(upload * 100)}%</p>}
@@ -166,14 +185,8 @@ function Editor({style, onClose, onSaved}: {style: StyleConfig; onClose: () => v
     </label>
   );
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">
-      <div className="card my-8 w-full max-w-3xl p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold">Editar estilo</h2>
-          <button className="btn-ghost" onClick={onClose}>
-            Fechar
-          </button>
-        </div>
+    <div>
+      <div className="card p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="label">Nome</span>
@@ -184,7 +197,7 @@ function Editor({style, onClose, onSaved}: {style: StyleConfig; onClose: () => v
             <input className="input" value={s.summary} onChange={(e) => set('summary', e.target.value)} />
           </label>
         </div>
-        <h3 className="mb-2 mt-5 font-bold">Cores e fontes</h3>
+        <h3 className="section-title mt-8 border-t border-line pt-6">Cores e fontes</h3>
         <div className="flex flex-wrap gap-4">
           {color('key', 'Destaque da legenda')}
           {color('accent', 'Acento')}
@@ -211,7 +224,7 @@ function Editor({style, onClose, onSaved}: {style: StyleConfig; onClose: () => v
           </label>
           {num('Peso', s.fonts.displayWeight, (v) => set('fonts', {...s.fonts, displayWeight: v}), 400, 900, 100)}
         </div>
-        <h3 className="mb-2 mt-5 font-bold">Legenda</h3>
+        <h3 className="section-title mt-8 border-t border-line pt-6">Legenda</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block">
             <span className="label">Preset</span>
@@ -229,7 +242,7 @@ function Editor({style, onClose, onSaved}: {style: StyleConfig; onClose: () => v
             <input type="checkbox" checked={s.captions.uppercase} onChange={() => set('captions', {...s.captions, uppercase: !s.captions.uppercase})} /> Caixa alta
           </label>
         </div>
-        <h3 className="mb-2 mt-5 font-bold">Câmera e ritmo</h3>
+        <h3 className="section-title mt-8 border-t border-line pt-6">Câmera e ritmo</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           {num('Snap zoom (máx.)', s.camera.punchScale[1], (v) => set('camera', {...s.camera, punchScale: [Math.min(s.camera.punchScale[0], v), v], maxZoom: Math.max(v, s.camera.maxZoom)}), 1.05, 1.6, 0.01)}
           {num('Snap a cada (s)', s.camera.punchEvery, (v) => set('camera', {...s.camera, punchEvery: v}), 2, 30, 1)}
@@ -286,11 +299,14 @@ function Editor({style, onClose, onSaved}: {style: StyleConfig; onClose: () => v
             <input className="input" value={s.cta ?? ''} onChange={(e) => set('cta', e.target.value || null)} />
           </label>
         </div>
-        <div className="mt-6 flex justify-end">
-          <button className="btn-primary px-5 py-2" disabled={busy} onClick={save}>
-            Salvar estilo
-          </button>
-        </div>
+      </div>
+      <div className="sticky bottom-0 z-10 -mx-4 mt-6 flex justify-end gap-2 border-t border-line bg-bg/85 px-4 py-4 backdrop-blur">
+        <button className="btn-ghost" onClick={onClose} disabled={busy}>
+          Cancelar
+        </button>
+        <button className="btn-primary btn-lg" disabled={busy} onClick={save}>
+          {busy ? <Spinner /> : <Icon name="check" />} Salvar estilo
+        </button>
       </div>
     </div>
   );

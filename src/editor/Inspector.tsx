@@ -8,6 +8,7 @@ import {api, getPlan, runProjectJob, savePlan} from '../lib/client/api';
 import {useEditor} from './store';
 import {addBroll, addOverlay, addSfx, addZoom, deleteItem, restoreRange, setCaptionText, splitAt, updateBroll, updateCaption, updateClip, updateOverlay, updateZoom} from './ops';
 import {uid} from '../lib/util/id';
+import {Icon} from '../components/ui/Icon';
 
 const SFX: SfxKind[] = ['whoosh', 'swoosh', 'pop', 'click', 'impact', 'riser', 'sparkle', 'glitch', 'ding', 'typing'];
 const TRANSITIONS: TransitionKind[] = ['cut', 'whip', 'zoom', 'flash', 'glitch', 'blur'];
@@ -51,20 +52,21 @@ export function Inspector({onReplan}: {onReplan: () => void}) {
   const live = (fn: (p: EditPlan) => EditPlan) => apply(fn, {history: false});
 
   const header = (title: string) => (
-    <div className="mb-4 flex items-center justify-between">
+    <div className="mb-4 flex items-center justify-between border-b border-line pb-3">
       <h3 className="font-bold">{title}</h3>
-      <div className="flex gap-2">
-        <button className="btn-ghost" onClick={() => select(null)}>
-          Fechar
+      <div className="flex gap-1">
+        <button className="btn-icon" onClick={() => select(null)} title="Fechar (Esc)">
+          <Icon name="x" />
         </button>
         <button
-          className="btn-danger"
+          className="btn-icon hover:!bg-danger/15 hover:!text-danger"
+          title="Apagar (⌫)"
           onClick={() => {
             apply((p) => deleteItem(p, sel), {refresh: sel?.kind === 'clip'});
             select(null);
           }}
         >
-          Apagar
+          <Icon name="trash" />
         </button>
       </div>
     </div>
@@ -453,8 +455,8 @@ function CutsPanel({busy, onRecut}: {busy: boolean; onRecut: (level: string, min
   const level = minPause <= 0.25 ? 'tight' : minPause >= 0.6 ? 'gentle' : 'medium';
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   return (
-    <div className="mt-6">
-      <h3 className="mb-2 font-bold">Cortes (respiros, erros e repetições)</h3>
+    <div className="mt-6 border-t border-line pt-5">
+      <h3 className="section-title mb-2">Cortes (respiros, erros e repetições)</h3>
       {r && (
         <p className="mb-3 text-xs text-muted">
           Ficaram <b className="text-white">{r.keptSec.toFixed(1)} s</b> de {(r.keptSec + r.removedSec).toFixed(1)} s · {r.pausesCut} pausa(s)/respiro(s) cortados ({r.pauseSec.toFixed(1)} s) · {r.removed.length} trecho(s) com erro ou repetição
@@ -597,30 +599,30 @@ function ProjectPanel({t, onReplan}: {t: number; onReplan: () => void}) {
 
   return (
     <div>
-      <h3 className="mb-3 font-bold">Adicionar na agulha ({t.toFixed(1)}s)</h3>
+      <h3 className="section-title">Adicionar na agulha ({t.toFixed(1)}s)</h3>
       <div className="mb-2 flex flex-wrap gap-1.5">
         {OVERLAYS.map((o) => (
-          <button key={o.kind} className="btn-ghost text-xs" onClick={() => add(addOverlay(plan, t, o.kind), 'overlay')}>
+          <button key={o.kind} className="btn-ghost btn-sm" onClick={() => add(addOverlay(plan, t, o.kind), 'overlay')}>
             + {o.label}
           </button>
         ))}
       </div>
       <div className="mb-5 flex flex-wrap gap-1.5">
-        <button className="btn-ghost text-xs" onClick={() => add(addBroll(plan, t), 'broll')}>
+        <button className="btn-ghost btn-sm" onClick={() => add(addBroll(plan, t), 'broll')}>
           + B-roll
         </button>
-        <button className="btn-ghost text-xs" onClick={() => add(addZoom(plan, t, 'punch'), 'zoom')}>
+        <button className="btn-ghost btn-sm" onClick={() => add(addZoom(plan, t, 'punch'), 'zoom')}>
           + Snap zoom
         </button>
-        <button className="btn-ghost text-xs" onClick={() => add(addZoom(plan, t, 'push'), 'zoom')}>
+        <button className="btn-ghost btn-sm" onClick={() => add(addZoom(plan, t, 'push'), 'zoom')}>
           + Slow push
         </button>
-        <button className="btn-ghost text-xs" onClick={() => add(addSfx(plan, t, 'whoosh'), 'sfx')}>
+        <button className="btn-ghost btn-sm" onClick={() => add(addSfx(plan, t, 'whoosh'), 'sfx')}>
           + Som
         </button>
       </div>
 
-      <h3 className="mb-3 font-bold">Vídeo</h3>
+      <h3 className="section-title border-t border-line pt-5">Vídeo</h3>
       <Row label="Estilo">
         <select className="input" value={plan.style} disabled={!!busy} onChange={(e) => action('estilo', {action: 'restyle', style: e.target.value})}>
           {STYLE_LIST.map((s) => (
@@ -700,7 +702,7 @@ function ProjectPanel({t, onReplan}: {t: number; onReplan: () => void}) {
       </div>
 
       <CutsPanel busy={!!busy} onRecut={(level, minPause, removeMistakes) => action('cortes', {action: 'autocut', level, minPause, removeMistakes})} />
-      <h3 className="mb-3 mt-6 font-bold">Refazer com IA / regras</h3>
+      <h3 className="section-title mt-6 border-t border-line pt-5">Refazer com IA / regras</h3>
       <div className="flex flex-wrap gap-2">
         <button className="btn-ghost" disabled={!!busy} onClick={() => action('legendas', {action: 'captions'})}>
           Regerar legendas

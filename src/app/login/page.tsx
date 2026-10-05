@@ -1,6 +1,7 @@
 'use client';
 import {Suspense, useState} from 'react';
 import {useSearchParams} from 'next/navigation';
+import {Logo} from '@/components/ui/Icon';
 
 function LoginForm() {
   const params = useSearchParams();
@@ -21,17 +22,22 @@ function LoginForm() {
     }
   };
   return (
-    <form onSubmit={submit} className="card w-full max-w-sm p-8">
-      <h1 className="mb-1 text-xl font-extrabold">
-        Editor de Vídeo <span className="text-brand">IA</span>
-      </h1>
-      <p className="mb-6 text-sm text-muted">Acesso restrito.</p>
+    <form onSubmit={submit} className="card relative w-full max-w-sm animate-fade-in p-8 shadow-pop">
+      <div className="mb-6 flex items-center gap-3">
+        <Logo size={36} />
+        <div>
+          <h1 className="text-lg font-extrabold tracking-tight">
+            Editor de Vídeo <span className="text-brand">IA</span>
+          </h1>
+          <p className="text-xs text-muted">Acesso restrito — entre com a senha.</p>
+        </div>
+      </div>
       <label className="label" htmlFor="pw">
         Senha
       </label>
       <input id="pw" type="password" className="input" autoFocus autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
-      <button className="btn-primary mt-5 w-full py-2" disabled={busy || !password}>
+      <button className="btn-primary btn-lg mt-5 w-full" disabled={busy || !password}>
         {busy ? 'Entrando…' : 'Entrar'}
       </button>
     </form>
@@ -40,7 +46,8 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <div className="pointer-events-none absolute top-1/4 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-brand/15 blur-3xl" />
       <Suspense>
         <LoginForm />
       </Suspense>
