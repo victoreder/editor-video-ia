@@ -1,0 +1,5 @@
+# código de referência e dados locais não vão para o deploy
+codigo-base/
+referencias/
+.data/
+remotion-bundle/

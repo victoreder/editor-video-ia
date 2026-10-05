@@ -9,8 +9,11 @@ export const config = {
   publicBaseUrl: env('PUBLIC_BASE_URL', 'http://localhost:3000'),
 
   storage: env('STORAGE', process.env.BLOB_READ_WRITE_TOKEN ? 'vercel-blob' : 'local') as 'local' | 'vercel-blob' | 's3',
-  db: env('DB', process.env.SUPABASE_URL ? 'supabase' : 'local') as 'local' | 'supabase',
-  runner: env('RUNNER', 'local') as 'local' | 'vercel-sandbox' | 'inline' | 'queue',
+  // Postgres da Vercel/Neon (DATABASE_URL ou POSTGRES_URL) → postgres; Supabase → supabase; senão JSON local
+  db: env('DB', process.env.DATABASE_URL || process.env.POSTGRES_URL ? 'postgres' : process.env.SUPABASE_URL ? 'supabase' : 'local') as 'local' | 'supabase' | 'postgres',
+  databaseUrl: env('DATABASE_URL', env('POSTGRES_URL')),
+  // na Vercel o padrão é a Sandbox (funções não rodam ffmpeg/Chromium por minutos)
+  runner: env('RUNNER', process.env.VERCEL ? 'vercel-sandbox' : 'local') as 'local' | 'vercel-sandbox' | 'inline' | 'queue',
   transcriber: env('TRANSCRIBER', '') as '' | 'elevenlabs' | 'openai' | 'groq' | 'script',
   director: env('DIRECTOR', 'claude') as 'claude' | 'openai' | 'heuristic',
 
