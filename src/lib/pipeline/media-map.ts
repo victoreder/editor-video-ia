@@ -8,6 +8,10 @@ export function mediaKeys(plan: EditPlan): string[] {
   for (const b of plan.broll) {
     if (b.asset.src) keys.add(b.asset.src);
   }
+  for (const o of plan.overlays) {
+    if (o.props.src) keys.add(o.props.src); // sticker/meme
+    if (o.props.matteSrc) keys.add(o.props.matteSrc); // recorte da pessoa
+  }
   if (plan.audio.music?.src) keys.add(plan.audio.music.src);
   return [...keys].filter((k) => !/^(https?:|data:|blob:|builtin:)/.test(k));
 }

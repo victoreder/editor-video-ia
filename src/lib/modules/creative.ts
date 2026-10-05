@@ -84,6 +84,8 @@ const QUERY_PT_EN: Record<string, string> = {
   tempo: 'clock time lapse', cidade: 'city aerial', ia: 'artificial intelligence technology', inteligencia: 'artificial intelligence technology',
   automacao: 'automation robot arm', dados: 'data dashboard screen', marketing: 'social media marketing', redes: 'social media phone scrolling',
   instagram: 'instagram phone scrolling', video: 'video editing timeline', estudo: 'student studying', academia: 'gym workout',
+  seguidores: 'social media followers growth', edicao: 'video editing timeline', legenda: 'subtitles on smartphone screen',
+  estrategia: 'strategy planning whiteboard', visualizacoes: 'social media views analytics', conteudo: 'content creator filming',
   comida: 'cooking food', viagem: 'travel landscape', familia: 'family together', saude: 'healthy lifestyle', cafe: 'coffee cup',
   reuniao: 'business meeting', equipe: 'team collaboration', crescimento: 'growth chart rising', sucesso: 'success celebration',
   ideia: 'light bulb idea', foguete: 'rocket launch', mundo: 'earth globe', casa: 'modern house', carro: 'car driving',
@@ -92,7 +94,9 @@ const QUERY_PT_EN: Record<string, string> = {
 function brollQuery(s: Sentence): {query: string; emoji: string} | null {
   for (const w of s.words) {
     const n = normWord(w.text);
-    if (QUERY_PT_EN[n]) return {query: QUERY_PT_EN[n], emoji: EMOJI_PT[n] ?? ''};
+    // plural/flexão: "vídeos" → video, "clientes" → cliente
+    const key = QUERY_PT_EN[n] ? n : Object.keys(QUERY_PT_EN).find((k) => k.length >= 4 && n.startsWith(k) && n.length - k.length <= 2);
+    if (key) return {query: QUERY_PT_EN[key], emoji: EMOJI_PT[key] ?? EMOJI_PT[n] ?? ''};
   }
   for (const w of s.words) {
     const n = normWord(w.text);

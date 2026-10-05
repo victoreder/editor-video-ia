@@ -245,3 +245,13 @@ export function projectedCaptionTimes(plan: Pick<EditPlan, 'captions' | 'clips' 
     return [{chunk: c, t0: srcToTimeline(p, Math.max(c.start, p.clip.inSec)), t1: srcToTimeline(p, Math.min(c.end, p.clip.outSec)), placed: p}];
   });
 }
+
+const TITLE_GLUE = /^(a|o|as|os|um|uma|de|do|da|dos|das|no|na|em|e|ou|mas|que|se|por|pra|para|com|sem|ao|à|é|meu|minha|seu|sua)$/i;
+
+/** título curto a partir de uma frase: corta em vírgula/ponto e nunca termina em palavra-cola */
+export function shortTitle(sentence: string, maxWords = 6): string {
+  const firstClause = sentence.replace(/[.!?…]+$/, '').split(/[,;:]/)[0].trim();
+  const ws = firstClause.split(/\s+/).filter(Boolean).slice(0, maxWords);
+  while (ws.length > 2 && TITLE_GLUE.test(ws[ws.length - 1].replace(/[^\p{L}]/gu, ''))) ws.pop();
+  return ws.join(' ');
+}

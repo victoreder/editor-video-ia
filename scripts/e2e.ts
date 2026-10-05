@@ -18,7 +18,10 @@ if (!video || !fs.existsSync(video)) {
   process.exit(1);
 }
 
-const SCRIPT = `Hoje eu vou te mostrar como a inteligência artificial pode triplicar suas vendas. Em 30 dias, nossos clientes cresceram 87%. O segredo não é trabalhar mais. São três coisas: conteúdo, constância, automação. Isso muda o jogo do seu negócio. Segue para mais dicas!`;
+const sIdx = process.argv.indexOf('--script');
+const SCRIPT_DEFAULT = `Hoje eu vou te mostrar como a inteligência artificial pode triplicar suas vendas. Em 30 dias, nossos clientes cresceram 87%. O segredo não é trabalhar mais. São três coisas: conteúdo, constância, automação. Isso muda o jogo do seu negócio. Segue para mais dicas!`;
+
+const SCRIPT = sIdx > 0 ? fs.readFileSync(process.argv[sIdx + 1], 'utf8') : SCRIPT_DEFAULT;
 
 async function main() {
   const db = getDb();
@@ -44,6 +47,7 @@ async function main() {
   const variant = project!.variants[0];
   const plan = await db.getPlan(id, variant);
   if (!plan) throw new Error('sem plano');
+  console.log(`gráficos: ${plan.overlays.map((o) => `${o.kind}${o.props.matteSrc ? '(recorte)' : ''}`).join(', ')} · cor: ${JSON.stringify(plan.grade.perSource)}`);
   console.log(`plano ${variant}: ${plan.clips.length} clipes, ${plan.words.length} palavras, ${plan.captions.chunks.length} legendas, ${plan.camera.beats.length} zooms, ${plan.overlays.length} gráficos, ${plan.broll.length} b-rolls, ${plan.transitions.length} transições, ${plan.audio.sfx.length} sfx`);
   for (const q of runQa(plan)) console.log(`  QA[${q.level}] ${q.message}`);
   if (doRender) {
@@ -54,6 +58,7 @@ async function main() {
     console.timeEnd('render');
     const r = await db.getJob(rj);
     console.log('render:', r?.status, r?.error ?? '', JSON.stringify(r?.result?.exports ?? null));
+    console.log((r?.result?.logs as string[] | undefined)?.join('\n  '));
   }
   console.log('projeto:', id);
 }

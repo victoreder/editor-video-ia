@@ -138,6 +138,8 @@ export class S3Storage implements Storage {
     return `${base.replace(/\/$/, '')}/${key}`;
   }
   renderUrl(key: string) {
+    // dentro do Docker o render enxerga o MinIO pela rede interna
+    if (!isUrl(key) && process.env.RENDER_MEDIA_BASE_URL) return `${process.env.RENDER_MEDIA_BASE_URL.replace(/\/$/, '')}/${config.s3.bucket}/${key}`;
     return this.publicUrl(key);
   }
   async put(key: string, body: Buffer | string, contentType?: string) {

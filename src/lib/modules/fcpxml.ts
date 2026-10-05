@@ -10,6 +10,8 @@ const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'
 
 /** taxas padrão: frameDuration como fração exata */
 function rate(fps: number): {num: number; den: number} {
+  // taxas inteiras primeiro (30 não é 29,97)
+  if (Math.abs(fps - Math.round(fps)) < 0.005) return {num: 100, den: Math.round(fps) * 100};
   if (Math.abs(fps - 29.97) < 0.05) return {num: 1001, den: 30000};
   if (Math.abs(fps - 23.976) < 0.05) return {num: 1001, den: 24000};
   if (Math.abs(fps - 59.94) < 0.05) return {num: 1001, den: 60000};

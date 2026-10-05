@@ -8,6 +8,7 @@ type Ctx = {params: Promise<{id: string}>};
 const Body = z.object({
   variant: z.enum(['claude', 'openai', 'heuristic']),
   formats: z.array(z.enum(['vertical', 'square', 'landscape'])).min(1).default(['vertical']),
+  clean: z.boolean().default(false),
 });
 
 export async function POST(req: Request, {params}: Ctx) {

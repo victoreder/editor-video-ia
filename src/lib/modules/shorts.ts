@@ -8,7 +8,7 @@
 //   energia      densidade de fala e eventos de áudio (risadas/aplausos)
 import type {Moment} from '../adapters/db/types';
 import type {Word} from '../plan/schema';
-import {normWord} from './captions';
+import {normWord, shortTitle} from './captions';
 
 const POWER = /\b(segredo|erro|erros|nunca|sempre|melhor|pior|grátis|gratis|dinheiro|rápido|fácil|simples|verdade|errado|ninguém|todo mundo|pare|como|por que|porque|maior|único|ninguem|mentira|cuidado)\b/i;
 const DANGLING = /^(e|mas|então|entao|porque|também|tambem|isso|essa|esse|esses|essas|ele|ela|eles|elas|aí|ai|daí|dai|ou|que)$/i;
@@ -70,7 +70,7 @@ export function findMoments(words: Word[], opts: {count?: number; min?: number; 
       if (laughs) (score += Math.min(2, laughs)), why.push(`${laughs} reação(ões) da plateia`);
       score += Math.min(2, n / d / 1.5); // energia (palavras por segundo)
       score += 1 - Math.min(1, Math.abs(d - 35) / 25); // duração perto de 35 s
-      const title = first.replace(/[.!?…]+$/, '').split(/\s+/).slice(0, 7).join(' ');
+      const title = /\?$/.test(first) ? first.replace(/\s+/g, ' ').split(/\s+/).slice(0, 8).join(' ') : shortTitle(first);
       cands.push({start: +start.toFixed(2), end: +end.toFixed(2), score: +score.toFixed(2), why, title, sourceId: sents[i].sourceId});
     }
   }

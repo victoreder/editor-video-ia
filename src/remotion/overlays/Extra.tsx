@@ -213,7 +213,8 @@ export const BehindText: React.FC<{o: Overlay; frame: number; life: number}> = (
   const {fps, width: W} = useVideoConfig();
   const k = W / 1080;
   const text = (o.props.text ?? '').toUpperCase();
-  const size = Math.min(380, (1900 / Math.max(3, text.length)) * 1.05) * k;
+  // cabe na largura mesmo com o zoom da câmera (~0,78 em por letra em caixa alta pesada)
+  const size = Math.min(340, 900 / (Math.max(3, text.length) * 0.78)) * k;
   const p = interpolate(frame, [0, 7], [1.25, 1], {...clamp, easing: (x) => 1 - Math.pow(1 - x, 4)});
   const fade = Math.min(interpolate(frame, [0, 4], [0, 1], clamp), interpolate(frame, [life - Math.round(fps * 0.2), life], [1, 0], clamp));
   return (

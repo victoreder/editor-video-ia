@@ -1,7 +1,7 @@
 # Imagem única para a VPS (fase 3): Next.js + worker (Node, ffmpeg, Python/OpenCV, Chromium do Remotion).
 FROM node:22-bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ffmpeg python3 python3-pip python3-numpy ca-certificates \
+      ffmpeg python3 python3-pip python3-numpy ca-certificates libgl1 libglib2.0-0 \
       libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2 libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app

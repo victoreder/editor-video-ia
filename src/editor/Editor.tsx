@@ -11,6 +11,8 @@ import type {QaIssue} from '../lib/modules/qa';
 import {useEditor} from './store';
 import {Timeline} from './Timeline';
 import {Inspector} from './Inspector';
+import {ChatPanel} from './ChatPanel';
+import {PublishPanel} from './PublishPanel';
 import {deleteItem, itemStart, splitAt} from './ops';
 import {isTypingTarget, resolveKey} from './keys';
 
@@ -27,6 +29,7 @@ export function Editor({projectName, variants, onSwitchVariant, onBack}: {projec
   const {undo, redo, setFrame, select, apply, markSaved, setSaving} = useEditor.getState();
   const player = useRef<PlayerRef>(null);
   const [panel, setPanel] = useState<'none' | 'export' | 'qa'>('none');
+  const [tab, setTab] = useState<'edit' | 'chat' | 'publish'>('edit');
   const [job, setJob] = useState<Job | null>(null);
   const duration = Math.max(1, planDurationFrames(plan));
   const fps = plan.format.fps;
@@ -211,8 +214,35 @@ export function Editor({projectName, variants, onSwitchVariant, onBack}: {projec
           </div>
         </div>
         {/* inspector */}
-        <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-line bg-panel p-4">
-          {panel === 'export' ? <ExportPanel onClose={() => setPanel('none')} /> : panel === 'qa' ? <QaPanel onClose={() => setPanel('none')} onSeek={(t) => seek(Math.round(t * fps))} /> : <Inspector onReplan={replan} />}
+        <aside className="flex w-[360px] shrink-0 flex-col border-l border-line bg-panel">
+          {panel === 'none' && (
+            <div className="flex border-b border-line text-sm">
+              {(
+                [
+                  ['edit', 'Editar'],
+                  ['chat', 'Chat IA'],
+                  ['publish', 'Publicar'],
+                ] as const
+              ).map(([k, l]) => (
+                <button key={k} onClick={() => setTab(k)} className={`flex-1 py-2 font-semibold ${tab === k ? 'border-b-2 border-brand text-white' : 'text-muted'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {panel === 'export' ? (
+              <ExportPanel onClose={() => setPanel('none')} />
+            ) : panel === 'qa' ? (
+              <QaPanel onClose={() => setPanel('none')} onSeek={(t) => seek(Math.round(t * fps))} />
+            ) : tab === 'chat' ? (
+              <ChatPanel />
+            ) : tab === 'publish' ? (
+              <PublishPanel />
+            ) : (
+              <Inspector onReplan={replan} />
+            )}
+          </div>
         </aside>
       </div>
       <div className="h-[290px] shrink-0 border-t border-line bg-panel">
@@ -259,11 +289,14 @@ function QaPanel({onClose, onSeek}: {onClose: () => void; onSeek: (t: number) =>
   );
 }
 
+const dl = (u: string) => u + (u.startsWith('/api/') ? '?download=1' : '');
+
 function ExportPanel({onClose}: {onClose: () => void}) {
   const projectId = useEditor((s) => s.projectId);
   const variant = useEditor((s) => s.variant);
   const dirty = useEditor((s) => s.dirty);
   const [formats, setFormats] = useState<string[]>(['vertical']);
+  const [clean, setClean] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [exportsList, setExports] = useState<ExportView[]>([]);
   const load = useCallback(() => api<{exports: ExportView[]}>(`/api/projects/${projectId}`).then((r) => setExports(r.exports)), [projectId]);
@@ -271,7 +304,7 @@ function ExportPanel({onClose}: {onClose: () => void}) {
     load();
   }, [load]);
   const start = async () => {
-    const {job: j} = await api<{job: Job}>(`/api/projects/${projectId}/render`, {method: 'POST', json: {variant, formats}});
+    const {job: j} = await api<{job: Job}>(`/api/projects/${projectId}/render`, {method: 'POST', json: {variant, formats, clean}});
     setJob(j);
     await waitJob(j.id, setJob, 2000);
     load();
@@ -294,7 +327,10 @@ function ExportPanel({onClose}: {onClose: () => void}) {
           <input type="checkbox" checked={formats.includes(f)} onChange={() => toggle(f)} /> {l}
         </label>
       ))}
-      <p className="my-3 text-xs text-muted">MP4 H.264 ~12 Mbps, áudio normalizado em −14 LUFS, legenda .srt e thumbnail.</p>
+      <label className="mb-2 flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={clean} onChange={() => setClean(!clean)} /> Também a versão limpa (sem legendas/gráficos, para editar em outro programa)
+      </label>
+      <p className="my-3 text-xs text-muted">MP4 H.264 ~12 Mbps, áudio em −14 LUFS com QA automático, legenda .srt, capa com título e timeline .fcpxml (DaVinci/Premiere/Final Cut).</p>
       <button className="btn-primary w-full py-2" disabled={!formats.length || dirty || (job !== null && job.status !== 'done' && job.status !== 'error')} onClick={start}>
         {dirty ? 'Salvando alterações…' : 'Renderizar'}
       </button>
@@ -311,7 +347,7 @@ function ExportPanel({onClose}: {onClose: () => void}) {
           <h4 className="mb-2 mt-6 text-sm font-bold">Exportações</h4>
           <ul className="space-y-2">
             {exportsList.map((e) => (
-              <li key={e.id} className="flex items-center gap-3 rounded-lg bg-panel2 p-2 text-xs">
+              <li key={e.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-panel2 p-2 text-xs">
                 {e.thumbUrl && <img src={e.thumbUrl} alt="" className="h-14 w-8 rounded object-cover" />}
                 <div className="flex-1">
                   <div className="font-semibold">
@@ -323,10 +359,21 @@ function ExportPanel({onClose}: {onClose: () => void}) {
                   MP4
                 </a>
                 {e.srtUrl && (
-                  <a className="btn-ghost" href={e.srtUrl + (e.srtUrl.startsWith('/api/') ? '?download=1' : '')} download>
+                  <a className="btn-ghost" href={dl(e.srtUrl)} download>
                     SRT
                   </a>
                 )}
+                {e.fcpxmlUrl && (
+                  <a className="btn-ghost" href={dl(e.fcpxmlUrl)} download title="Timeline para DaVinci/Premiere/Final Cut">
+                    XML
+                  </a>
+                )}
+                {e.cleanUrl && (
+                  <a className="btn-ghost" href={dl(e.cleanUrl)} download title="Versão limpa">
+                    Limpo
+                  </a>
+                )}
+                {e.qa && <div className={`w-full text-[11px] ${e.qa.ok ? 'text-emerald-300' : 'text-amber-300'}`}>QA: {e.qa.ok ? `ok${e.qa.lufs !== null ? ` · ${e.qa.lufs.toFixed(1)} LUFS` : ''}` : e.qa.notes.join('; ')}</div>}
               </li>
             ))}
           </ul>

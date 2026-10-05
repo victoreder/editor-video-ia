@@ -31,7 +31,7 @@ export type AppConfig = {
 };
 
 export type ProjectView = Project & {thumbUrl: string | null};
-export type ExportView = Project['exports'][number] & {videoUrl: string; srtUrl: string | null; thumbUrl: string | null};
+export type ExportView = Project['exports'][number] & {videoUrl: string; srtUrl: string | null; thumbUrl: string | null; fcpxmlUrl: string | null; cleanUrl: string | null};
 
 function putWithProgress(url: string, file: File, onProgress: (f: number) => void, headers: Record<string, string> = {}): Promise<void> {
   return new Promise((resolve, reject) => {

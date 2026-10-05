@@ -16,7 +16,7 @@ export async function GET(_: Request, {params}: Ctx) {
     const jobs = (await db.listJobs(id)).slice(0, 10);
     return {
       project: {...project, thumbUrl: project.thumbKey ? storage.publicUrl(project.thumbKey) : null},
-      exports: project.exports.map((e) => ({...e, videoUrl: storage.publicUrl(e.videoKey), srtUrl: e.srtKey ? storage.publicUrl(e.srtKey) : null, thumbUrl: e.thumbKey ? storage.publicUrl(e.thumbKey) : null})),
+      exports: project.exports.map((e) => ({...e, videoUrl: storage.publicUrl(e.videoKey), srtUrl: e.srtKey ? storage.publicUrl(e.srtKey) : null, thumbUrl: e.thumbKey ? storage.publicUrl(e.thumbKey) : null, fcpxmlUrl: e.fcpxmlKey ? storage.publicUrl(e.fcpxmlKey) : null, cleanUrl: e.cleanKey ? storage.publicUrl(e.cleanKey) : null})),
       jobs,
     };
   });

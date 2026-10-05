@@ -2,7 +2,7 @@
 // Baseado em EverythingAI/ve_postpack.py (MIT). A IA escreve; sem IA, regras.
 import {z} from 'zod';
 import type {PostPack} from '../adapters/db/types';
-import {normWord, wordScore} from './captions';
+import {normWord, shortTitle, wordScore} from './captions';
 
 export const PostPackSchema = z.object({
   hook: z.string().describe('gancho curto para a capa/primeira linha (até 8 palavras)'),
@@ -19,14 +19,18 @@ Regras:
 - Instagram: 2–4 frases + CTA + hashtags no fim (5–10). TikTok: 1–2 frases curtas + 3–5 hashtags. Shorts: título forte + 1 frase.
 - Use os termos e nomes exatamente como foram ditos.`;
 
-const STOP = new Set('para pelo pela como mais muito isso esse essa este esta você voce vocês nosso nossa sobre quando onde porque então tudo cada fazer ter'.split(' '));
+const STOP = new Set('para pelo pela como mais muito isso esse essa este esta você voce vocês nosso nossa sobre quando onde porque então entao tudo cada fazer ter sempre nunca agora primeiro depois antes ainda também tambem coisa coisas gente pessoas aqui assim quero vamos simples todos todas outra outro'.split(' '));
 
 /** sem IA: gancho = frase mais forte; hashtags = palavras de maior peso */
 export function heuristicPostPack(text: string): PostPack {
   const sents = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-  const scored = sents.map((s) => ({s, sc: s.split(/\s+/).reduce((n, w, i) => n + wordScore(w, i), 0) / Math.max(4, s.split(/\s+/).length)}));
-  const best = scored.sort((a, b) => b.sc - a.sc)[0]?.s ?? sents[0] ?? '';
-  const hook = best.replace(/[.!?]+$/, '').split(/\s+/).slice(0, 8).join(' ');
+  // gancho: pergunta ou número logo no começo; frases que apontam para trás ("Então…", "E aí…") ficam de fora
+  const dangling = /^(e|mas|então|entao|aí|ai|isso|porque|daí)\b/i;
+  const scored = sents
+    .map((s, i) => ({s, sc: s.split(/\s+/).reduce((n, w, k) => n + wordScore(w, k), 0) / Math.max(4, s.split(/\s+/).length) + (/\?$/.test(s) ? 3 : 0) + (/\d/.test(s) ? 1.5 : 0) - (dangling.test(s) ? 5 : 0) - i * 0.15}))
+    .sort((a, b) => b.sc - a.sc);
+  const best = scored[0]?.s ?? sents[0] ?? '';
+  const hook = /\?$/.test(best) && best.split(/\s+/).length <= 10 ? best : shortTitle(best, 8);
   const words = text.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter((w) => w.length > 4 && !STOP.has(normWord(w)));
   const freq = new Map<string, number>();
   for (const w of words) freq.set(normWord(w), (freq.get(normWord(w)) ?? 0) + 1 + wordScore(w, 1) / 5);
