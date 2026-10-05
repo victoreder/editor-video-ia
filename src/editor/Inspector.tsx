@@ -6,7 +6,7 @@ import type {EditPlan, OverlayKind, SfxKind, TransitionKind} from '../lib/plan/s
 import {STYLE_LIST} from '../lib/styles';
 import {api, getPlan, runProjectJob, savePlan} from '../lib/client/api';
 import {useEditor} from './store';
-import {addBroll, addOverlay, addSfx, addZoom, deleteItem, setCaptionText, splitAt, updateBroll, updateCaption, updateClip, updateOverlay, updateZoom} from './ops';
+import {addBroll, addOverlay, addSfx, addZoom, deleteItem, restoreRange, setCaptionText, splitAt, updateBroll, updateCaption, updateClip, updateOverlay, updateZoom} from './ops';
 import {uid} from '../lib/util/id';
 
 const SFX: SfxKind[] = ['whoosh', 'swoosh', 'pop', 'click', 'impact', 'riser', 'sparkle', 'glitch', 'ding', 'typing'];
@@ -440,6 +440,66 @@ function MusicAiButton() {
   );
 }
 
+/**
+ * Cortes: respiros + erros/repetições. Mostra o que foi removido e deixa restaurar
+ * qualquer trecho com 1 clique (se o sistema cortou algo que você queria).
+ */
+function CutsPanel({busy, onRecut}: {busy: boolean; onRecut: (level: string, minPause: number, removeMistakes: boolean) => void}) {
+  const plan = useEditor((s) => s.plan)!;
+  const {apply} = useEditor.getState();
+  const [minPause, setMinPause] = useState(0.35);
+  const [mistakes, setMistakes] = useState(true);
+  const [open, setOpen] = useState(false);
+  const r = plan.cutReport;
+  const level = minPause <= 0.25 ? 'tight' : minPause >= 0.6 ? 'gentle' : 'medium';
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  return (
+    <div className="mt-6">
+      <h3 className="mb-2 font-bold">Cortes (respiros, erros e repetições)</h3>
+      {r && (
+        <p className="mb-3 text-xs text-muted">
+          Ficaram <b className="text-white">{r.keptSec.toFixed(1)} s</b> de {(r.keptSec + r.removedSec).toFixed(1)} s · {r.pausesCut} pausa(s)/respiro(s) cortados ({r.pauseSec.toFixed(1)} s) · {r.removed.length} trecho(s) com erro ou repetição
+        </p>
+      )}
+      <Row label={`Cortar pausas maiores que ${minPause.toFixed(2)} s`}>
+        <input type="range" className="w-full" min={0.15} max={1} step={0.05} value={minPause} onChange={(e) => setMinPause(Number(e.target.value))} />
+        <div className="flex justify-between text-[10px] text-muted">
+          <span>todo respiro</span>
+          <span>só pausas longas</span>
+        </div>
+      </Row>
+      <label className="mb-3 flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={mistakes} onChange={() => setMistakes(!mistakes)} /> Remover erros, repetições e "pera, vou de novo"
+      </label>
+      <button className="btn-ghost w-full" disabled={busy} onClick={() => onRecut(level, minPause, mistakes)}>
+        Refazer cortes
+      </button>
+      {r && r.removed.length > 0 && (
+        <div className="mt-3">
+          <button className="text-xs text-brand2 underline" onClick={() => setOpen(!open)}>
+            {open ? 'Esconder' : 'Ver'} o que foi removido ({r.removed.length})
+          </button>
+          {open && (
+            <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">
+              {r.removed.map((x, i) => (
+                <li key={i} className="rounded-lg bg-panel2 p-2 text-xs">
+                  <div className="text-muted">
+                    {fmt(x.start)} · {x.reason}
+                  </div>
+                  <div className="line-through decoration-red-400/70">{x.text}</div>
+                  <button className="mt-1 text-[11px] text-brand2 underline" onClick={() => apply((p) => restoreRange(p, x.sourceId, x.start, x.end), {refresh: true})}>
+                    Restaurar este trecho
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function swap<T>(arr: T[], i: number, j: number): T[] {
   const a = arr.slice();
   [a[i], a[j]] = [a[j], a[i]];
@@ -640,16 +700,9 @@ function ProjectPanel({t, onReplan}: {t: number; onReplan: () => void}) {
         </Row>
       </div>
 
+      <CutsPanel busy={!!busy} onRecut={(level, minPause, removeMistakes) => action('cortes', {action: 'autocut', level, minPause, removeMistakes})} />
       <h3 className="mb-3 mt-6 font-bold">Refazer com IA / regras</h3>
       <div className="flex flex-wrap gap-2">
-        <select className="input w-auto" id="aggr" defaultValue="medium">
-          <option value="gentle">Cortes suaves</option>
-          <option value="medium">Cortes médios</option>
-          <option value="tight">Cortes agressivos</option>
-        </select>
-        <button className="btn-ghost" disabled={!!busy} onClick={() => action('cortes', {action: 'autocut', level: (document.getElementById('aggr') as HTMLSelectElement).value})}>
-          Refazer cortes
-        </button>
         <button className="btn-ghost" disabled={!!busy} onClick={() => action('legendas', {action: 'captions'})}>
           Regerar legendas
         </button>

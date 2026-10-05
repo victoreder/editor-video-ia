@@ -4,7 +4,9 @@ import type {EditPlan, FaceTrack, Platform, Source, StyleConfig, StyleId, Word} 
 import {EditPlanSchema, FORMATS, type FormatId} from '../plan/schema';
 import {getStyle, isBuiltinStyle, styleOf} from '../styles';
 import {placeClips, timelineWords} from '../plan/timeline';
-import {autoCut, snapClipsToWords, speechSegments, dropRetakes, mergeClose, segmentsToClips, type Aggressiveness, type Segment} from '../modules/cuts';
+import {snapClipsToWords, type Aggressiveness} from '../modules/cuts';
+import {buildCuts, detectMistakes, transcriptForCut, type CutReport, type Removal} from '../modules/smartcut';
+import {CUT_SYSTEM} from '../adapters/director/prompts';
 import {buildCaptions} from '../modules/captions';
 import {applyCreative, emptyCreative, heuristicCreative, type Creative} from '../modules/creative';
 import {placeCaptions, placeCards} from '../modules/safezone';
@@ -34,38 +36,41 @@ export function emptyPlan(opts: {style: StyleId; styleConfig?: StyleConfig; plat
   });
 }
 
-/** Cortes: autocut mecânico; a IA (se houver) escolhe entre os takes. */
+/**
+ * Cortes: respiros (medidos no áudio) + erros e repetições.
+ * Sem IA, tudo por regras. Com IA, a IA decide o que é erro/repetição/bastidor
+ * (por intervalo de palavras) e as regras mecânicas (gaguejada, "éé") continuam valendo.
+ */
 export async function planCuts(
   sources: Source[],
   words: Word[],
-  opts: {level: Aggressiveness; director: Director; script?: string; log?: (s: string) => void},
-): Promise<EditPlan['clips']> {
-  if (opts.director.id === 'heuristic' || !words.length) {
-    const {clips, droppedSec} = autoCut(sources, words, opts.level, true);
-    if (droppedSec > 0) opts.log?.(`takes repetidos removidos: ${droppedSec.toFixed(1)} s`);
-    return snapClipsToWords(clips, words);
-  }
-  let segs: Segment[] = [];
-  for (const s of sources) {
-    const sw = words.filter((w) => w.sourceId === s.id);
-    if (!sw.length) segs.push({sourceId: s.id, inSec: 0, outSec: s.duration, words: []});
-    else segs.push(...speechSegments(sw, s, opts.level));
-  }
-  try {
-    const name = new Map(sources.map((s) => [s.id, s.name]));
-    const res = await opts.director.selectTakes(
-      segs.map((s, i) => ({i, sourceName: name.get(s.sourceId) ?? s.sourceId, start: s.inSec, end: s.outSec, text: s.words.map((w) => w.text).join(' ') || '(sem fala)'})),
-      opts.script,
-    );
-    const keep = res.keep.filter((i, k, a) => Number.isInteger(i) && segs[i] && a.indexOf(i) === k);
-    if (keep.length) {
-      opts.log?.(`takes (IA): ${keep.length}/${segs.length} trechos. ${res.notes ?? ''}`);
-      return snapClipsToWords(segmentsToClips(mergeClose(keep.map((i) => segs[i]))), words);
+  opts: {level: Aggressiveness; director: Director; script?: string; log?: (s: string) => void; minPause?: number; removeMistakes?: boolean},
+): Promise<{clips: EditPlan['clips']; report: CutReport}> {
+  const removeMistakes = opts.removeMistakes !== false;
+  const pausesBy = new Map(sources.map((s) => [s.id, s.pauses]));
+  let removals: Removal[] = removeMistakes ? detectMistakes(words, pausesBy, opts.level) : [];
+  if (removeMistakes && opts.director.id !== 'heuristic' && words.length) {
+    try {
+      const {z} = await import('zod');
+      const r = await opts.director.json({
+        name: 'cuts',
+        system: CUT_SYSTEM,
+        user: `${opts.script ? `ROTEIRO PRETENDIDO:\n${opts.script}\n\n` : ''}TRANSCRIÇÃO:\n${transcriptForCut(words, sources)}`,
+        schema: z.object({remove: z.array(z.object({from: z.number(), to: z.number(), reason: z.string()})), notes: z.string()}),
+        effort: 'medium',
+      });
+      const ai = r.remove.filter((x) => Number.isInteger(x.from) && Number.isInteger(x.to) && x.from >= 0 && x.to < words.length && x.to >= x.from);
+      // a IA decide frases; as regras mecânicas de palavra (gaguejada, "éé") somam-se a ela
+      const mechanical = removals.filter((x) => /gaguejada|hesitação|palavra começada/.test(x.reason));
+      removals = [...ai, ...mechanical];
+      opts.log?.(`cortes (IA): ${ai.length} trecho(s) com erro/repetição. ${r.notes ?? ''}`);
+    } catch (e) {
+      opts.log?.(`revisão dos cortes pela IA falhou (${String(e).slice(0, 140)}); usando regras`);
     }
-  } catch (e) {
-    opts.log?.(`escolha de takes pela IA falhou (${String(e).slice(0, 140)}); usando regras`);
   }
-  return snapClipsToWords(segmentsToClips(mergeClose(dropRetakes(segs).kept)), words);
+  const {clips, report} = buildCuts(sources, words, removals, {level: opts.level, minPause: opts.minPause});
+  opts.log?.(`cortes: ${report.pausesCut} pausas/respiros (${report.pauseSec.toFixed(1)} s) e ${report.removed.length} trecho(s) com erro/repetição — ficaram ${report.keptSec.toFixed(1)} s de ${(report.keptSec + report.removedSec).toFixed(1)} s`);
+  return {clips: snapClipsToWords(clips, words), report};
 }
 
 /** Plano criativo (IA ou regras) + regras mecânicas. Mantém clipes/legendas editados. */
@@ -107,6 +112,8 @@ export async function basePlan(input: {
   platform: Platform;
   director: Director;
   level: Aggressiveness;
+  minPause?: number;
+  removeMistakes?: boolean;
   script?: string;
   musicKey?: string;
   log?: (s: string) => void;
@@ -115,7 +122,9 @@ export async function basePlan(input: {
   plan.sources = input.sources;
   plan.words = input.words;
   plan.faceTracks = input.faceTracks;
-  plan.clips = await planCuts(input.sources, input.words, {level: input.level, director: input.director, script: input.script, log: input.log});
+  const cut = await planCuts(input.sources, input.words, {level: input.level, director: input.director, script: input.script, log: input.log, minPause: input.minPause, removeMistakes: input.removeMistakes});
+  plan.clips = cut.clips;
+  plan.cutReport = cut.report;
   plan.captions.chunks = buildCaptions(plan);
   if (input.musicKey) plan.audio.music = {src: input.musicKey, volume: styleOf(plan).music.volume, startSec: 0, fadeOutSec: 1.5, duck: true, duckLevel: 0.3};
   return plan;

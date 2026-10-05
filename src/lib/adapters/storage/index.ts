@@ -26,6 +26,9 @@ export interface Storage {
   uploadTarget(key: string, contentType: string): Promise<UploadTarget>;
 }
 
+export const BLOB_MISSING =
+  'Armazenamento não configurado: na Vercel, abra o projeto → Storage → crie/conecte um Blob store (ele cria BLOB_READ_WRITE_TOKEN) e faça Redeploy. Sem isso o vídeo passaria pela função, que aceita no máximo 4,5 MB (erro 413).';
+
 const isUrl = (s: string) => /^https?:\/\//.test(s);
 
 // ---------------------------------------------------------------- local
@@ -71,6 +74,9 @@ export class LocalStorage implements Storage {
     await fsp.rm(this.file(prefix), {recursive: true, force: true});
   }
   async uploadTarget(key: string): Promise<UploadTarget> {
+    // na Vercel o arquivo passaria pela função (limite de 4,5 MB → erro 413) e o
+    // disco não é compartilhado com a Sandbox: exige o Blob
+    if (process.env.VERCEL) throw new Error(BLOB_MISSING);
     return {mode: 'local', url: `/api/upload/local?key=${encodeURIComponent(key)}`, method: 'PUT'};
   }
 }

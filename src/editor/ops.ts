@@ -278,3 +278,37 @@ export function itemStart(plan: EditPlan, sel: Selection): number | null {
 }
 
 export {srcToTimeline};
+
+/**
+ * Restaura um trecho que o corte automático removeu: volta como clipe, na posição
+ * certa (depois do último clipe da mesma fonte que vem antes dele).
+ */
+export function restoreRange(plan: EditPlan, sourceId: string, start: number, end: number): EditPlan {
+  const inSec = Math.max(0, +(start - 0.06).toFixed(3));
+  const outSec = +(end + 0.12).toFixed(3);
+  const clip: Clip = {id: uid('clip'), sourceId, inSec, outSec, speed: 1, volume: 1, muted: false, baseZoom: 1, label: 'restaurado'};
+  let at = plan.clips.length;
+  for (let i = 0; i < plan.clips.length; i++) {
+    const c = plan.clips[i];
+    if (c.sourceId === sourceId && c.inSec >= inSec) {
+      at = i;
+      break;
+    }
+  }
+  // sobreposição com clipes vizinhos da mesma fonte: aparar para não repetir áudio
+  const clips = [...plan.clips.slice(0, at), clip, ...plan.clips.slice(at)].map((c, i, arr) => {
+    if (c !== clip) return c;
+    const prev = arr[i - 1];
+    const next = arr[i + 1];
+    return {
+      ...c,
+      inSec: prev && prev.sourceId === sourceId ? Math.max(c.inSec, prev.outSec) : c.inSec,
+      outSec: next && next.sourceId === sourceId ? Math.min(c.outSec, next.inSec) : c.outSec,
+    };
+  });
+  return {
+    ...plan,
+    clips,
+    cutReport: plan.cutReport ? {...plan.cutReport, removed: plan.cutReport.removed.filter((r) => !(r.sourceId === sourceId && r.start === start && r.end === end))} : undefined,
+  };
+}

@@ -6,6 +6,7 @@
 import type {Clip, Source, Word} from '../plan/schema';
 import {normWord} from './captions';
 import {uid} from '../util/id';
+import {smartCut, type CutReport} from './smartcut';
 
 export type Aggressiveness = 'gentle' | 'medium' | 'tight';
 
@@ -127,22 +128,13 @@ export function segmentsToClips(segments: Segment[]): Clip[] {
 }
 
 /** Corte automático completo: pausas + takes repetidos, fonte por fonte na ordem enviada. */
-export function autoCut(sources: Source[], words: Word[], level: Aggressiveness = 'medium', removeRetakes = true): {clips: Clip[]; droppedSec: number} {
-  let segs: Segment[] = [];
-  for (const s of sources) {
-    const sw = words.filter((w) => w.sourceId === s.id);
-    if (!sw.length) {
-      // sem fala (ex.: B-roll gravado) → entra inteiro
-      segs.push({sourceId: s.id, inSec: 0, outSec: s.duration, words: []});
-      continue;
-    }
-    segs.push(...speechSegments(sw, s, level));
-  }
-  let dropped: Segment[] = [];
-  if (removeRetakes) ({kept: segs, dropped} = dropRetakes(segs));
-  segs = mergeClose(segs);
-  const droppedSec = dropped.reduce((n, s) => n + s.outSec - s.inSec, 0);
-  return {clips: segmentsToClips(segs), droppedSec};
+/**
+ * Corte automático completo (respiros medidos no áudio + erros e repetições).
+ * Mantido com a mesma assinatura; o trabalho está em smartcut.ts.
+ */
+export function autoCut(sources: Source[], words: Word[], level: Aggressiveness = 'medium', removeRetakes = true, minPause?: number): {clips: Clip[]; droppedSec: number; report: CutReport} {
+  const r = smartCut(sources, words, {level, removeMistakes: removeRetakes, minPause});
+  return {clips: r.clips, droppedSec: r.report.removedSec, report: r.report};
 }
 
 /** Garante que nenhum corte cai no meio de uma palavra (move a borda para fora da palavra). */

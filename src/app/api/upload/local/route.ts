@@ -5,12 +5,13 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
-import {getStorage, LocalStorage} from '@/lib/adapters/storage';
+import {BLOB_MISSING, getStorage, LocalStorage} from '@/lib/adapters/storage';
 import {fail, json} from '@/lib/server/http';
 
 export const dynamic = 'force-dynamic';
 
 export async function PUT(req: Request) {
+  if (process.env.VERCEL) return fail(BLOB_MISSING, 503);
   const storage = getStorage();
   if (!(storage instanceof LocalStorage)) return fail('upload local desativado (STORAGE != local)', 400);
   const key = new URL(req.url).searchParams.get('key');

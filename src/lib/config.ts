@@ -4,6 +4,13 @@ import path from 'node:path';
 
 const env = (k: string, d = '') => process.env[k] ?? d;
 
+// Blob store conectado com prefixo próprio (ex.: VIDEOS_READ_WRITE_TOKEN): o SDK
+// do @vercel/blob só lê BLOB_READ_WRITE_TOKEN, então copiamos para ele.
+if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  const alt = Object.entries(process.env).find(([k, v]) => k.endsWith('_READ_WRITE_TOKEN') && v?.startsWith('vercel_blob_rw_'));
+  if (alt) process.env.BLOB_READ_WRITE_TOKEN = alt[1];
+}
+
 export const config = {
   dataDir: path.resolve(env('DATA_DIR', '.data')),
   publicBaseUrl: env('PUBLIC_BASE_URL', 'http://localhost:3000'),
