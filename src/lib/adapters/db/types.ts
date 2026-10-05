@@ -69,12 +69,14 @@ export type Job = {
   id: string;
   projectId: string;
   type: JobType;
-  status: 'queued' | 'running' | 'done' | 'error';
+  status: 'queued' | 'running' | 'done' | 'error' | 'cancelled';
   progress: number;
   label: string;
   error?: string;
   input: Record<string, unknown>;
   result?: Record<string, unknown>;
+  /** onde está rodando (pid:123, sandbox:nome) — para parar */
+  runnerRef?: string;
   createdAt: string;
   updatedAt: string;
 };

@@ -84,27 +84,64 @@ export class LocalStorage implements Storage {
 
 // ---------------------------------------------------------------- Vercel Blob
 
+const isPrivateBlob = (u: string) => /\.private\.blob\.vercel-storage\.com\//.test(u);
+type Access = 'public' | 'private';
+
 export class VercelBlobStorage implements Storage {
   readonly kind = 'vercel-blob' as const;
-  // as chaves guardadas no plano são as URLs públicas do Blob
+  // store público ou privado: BLOB_ACCESS manda; senão tenta o provável e troca se o Blob recusar
+  private access: Access = (process.env.BLOB_ACCESS as Access | undefined) ?? (process.env.BLOB_READ_WRITE_TOKEN ? 'public' : 'private');
+  private signer: Promise<import('@vercel/blob').IssuedSignedToken> | null = null;
+  private signerUntil = 0;
+
+  // as chaves guardadas no plano são as URLs do Blob. Store privado: o navegador
+  // passa por /api/media (exige login), que redireciona para um link assinado temporário
   publicUrl(key: string) {
-    return key;
+    return isPrivateBlob(key) ? `/api/media?u=${encodeURIComponent(key)}` : key;
   }
   renderUrl(key: string) {
     return key;
   }
+  /** link assinado (store privado) — o mesmo URL se o blob for público */
+  async signedUrl(url: string): Promise<string> {
+    if (!isPrivateBlob(url)) return url;
+    const {issueSignedToken, presignUrl} = await import('@vercel/blob');
+    if (!this.signer || Date.now() > this.signerUntil - 15 * 60e3) {
+      this.signerUntil = Date.now() + 2 * 3600e3;
+      this.signer = issueSignedToken({operations: ['get', 'head'], validUntil: this.signerUntil});
+      this.signer.catch(() => (this.signer = null));
+    }
+    const pathname = decodeURIComponent(new URL(url).pathname.slice(1));
+    return (await presignUrl(await this.signer, {operation: 'get', pathname, access: 'private'})).presignedUrl;
+  }
+  private async withAccess<T>(fn: (access: Access) => Promise<T>): Promise<T> {
+    try {
+      return await fn(this.access);
+    } catch (e) {
+      if (!/access|private|public/i.test(String(e))) throw e;
+      const other: Access = this.access === 'public' ? 'private' : 'public';
+      const r = await fn(other);
+      this.access = other;
+      return r;
+    }
+  }
   async put(key: string, body: Buffer | string, contentType?: string) {
     const {put} = await import('@vercel/blob');
-    const r = await put(key, body, {access: 'public', contentType, addRandomSuffix: false, allowOverwrite: true});
+    const r = await this.withAccess((access) => put(key, body, {access, contentType, addRandomSuffix: false, allowOverwrite: true}));
     return r.url;
   }
   async putFile(key: string, localPath: string, contentType?: string) {
     const {put} = await import('@vercel/blob');
-    const r = await put(key, fs.createReadStream(localPath), {access: 'public', contentType, addRandomSuffix: false, allowOverwrite: true, multipart: true});
+    const r = await this.withAccess((access) => put(key, fs.createReadStream(localPath), {access, contentType, addRandomSuffix: false, allowOverwrite: true, multipart: true}));
     return r.url;
   }
   async download(key: string, localPath: string) {
-    return downloadUrl(key, localPath);
+    let url = key;
+    if (!isUrl(key)) {
+      const {head} = await import('@vercel/blob');
+      url = (await head(key)).url;
+    }
+    return downloadUrl(await this.signedUrl(url), localPath);
   }
   async exists(key: string) {
     const {head} = await import('@vercel/blob');
@@ -117,13 +154,25 @@ export class VercelBlobStorage implements Storage {
   }
   async delete(prefix: string) {
     const {list, del} = await import('@vercel/blob');
-    const {blobs} = await list({prefix});
-    if (blobs.length) await del(blobs.map((b) => b.url));
+    for (let cursor: string | undefined; ; ) {
+      const r = await list({prefix, cursor});
+      if (r.blobs.length) await del(r.blobs.map((b) => b.url));
+      if (!r.hasMore) break;
+      cursor = r.cursor;
+    }
   }
   async uploadTarget(key: string): Promise<UploadTarget> {
     // upload direto do navegador ao Blob (contorna o limite de 4,5 MB das funções)
     return {mode: 'vercel-blob', handleUploadUrl: '/api/upload/blob', pathname: key, presigned: !process.env.BLOB_READ_WRITE_TOKEN};
   }
+}
+
+/** troca as URLs de um mapa de mídia por links assinados (Blob privado), para o render */
+export async function signMedia(media: Record<string, string>, storage: Storage): Promise<Record<string, string>> {
+  if (!(storage instanceof VercelBlobStorage)) return media;
+  const out: Record<string, string> = {};
+  for (const [k, u] of Object.entries(media)) out[k] = await storage.signedUrl(u);
+  return out;
 }
 
 // ---------------------------------------------------------------- S3 / MinIO

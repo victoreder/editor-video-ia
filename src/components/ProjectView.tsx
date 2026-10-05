@@ -66,6 +66,20 @@ export default function ProjectView({id}: {id: string}) {
   if (!data) return <Centered><p className="text-muted">Carregando…</p></Centered>;
   const {project, jobs} = data;
   const job = jobs.find((j) => j.type === 'process');
+  const stop = async () => {
+    if (!confirm('Parar o processamento deste vídeo?')) return;
+    await api(`/api/projects/${id}/cancel`, {method: 'POST'}).catch((e) => alert(e instanceof Error ? e.message : String(e)));
+    load();
+  };
+  const remove = async () => {
+    if (!confirm(`Excluir "${project.name}"? O vídeo e as edições serão apagados.`)) return;
+    try {
+      await api(`/api/projects/${id}`, {method: 'DELETE'});
+      router.push('/');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   if (project.status === 'processing' || project.status === 'draft') {
     return (
@@ -81,14 +95,27 @@ export default function ProjectView({id}: {id: string}) {
             <div className="h-full bg-gradient-to-r from-brand to-brand2 transition-all" style={{width: `${job?.progress ?? 2}%`}} />
           </div>
           <Steps progress={job?.progress ?? 0} />
-          {project.status === 'draft' && !job && (
-            <button className="btn-primary mt-6" onClick={async () => {
-              await api(`/api/projects/${id}/process`, {method: 'POST'});
-              load();
-            }}>
-              Processar
+          <div className="mt-6 flex flex-wrap gap-2">
+            {project.status === 'draft' && !job && project.uploads.length > 0 && (
+              <button className="btn-primary" onClick={async () => {
+                await api(`/api/projects/${id}/process`, {method: 'POST'});
+                load();
+              }}>
+                Processar
+              </button>
+            )}
+            {project.status === 'processing' && (
+              <button className="btn-ghost" onClick={stop}>
+                Parar processamento
+              </button>
+            )}
+            <button className="btn-ghost text-red-300" onClick={remove}>
+              Excluir
             </button>
-          )}
+            <button className="btn-ghost ml-auto" onClick={() => router.push('/')}>
+              Voltar
+            </button>
+          </div>
         </div>
       </Centered>
     );
@@ -101,11 +128,16 @@ export default function ProjectView({id}: {id: string}) {
           <h1 className="mb-2 text-xl font-bold">Algo deu errado</h1>
           <p className="mb-6 text-sm text-red-300">{project.error}</p>
           <div className="flex gap-2">
-            <button className="btn-primary" onClick={async () => {
-              await api(`/api/projects/${id}/process`, {method: 'POST'});
-              load();
-            }}>
-              Tentar de novo
+            {project.uploads.length > 0 && (
+              <button className="btn-primary" onClick={async () => {
+                await api(`/api/projects/${id}/process`, {method: 'POST'});
+                load();
+              }}>
+                Tentar de novo
+              </button>
+            )}
+            <button className="btn-ghost text-red-300" onClick={remove}>
+              Excluir
             </button>
             <button className="btn-ghost" onClick={() => router.push('/')}>
               Voltar

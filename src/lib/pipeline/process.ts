@@ -32,7 +32,7 @@ async function cachedTranscript(audioPath: string, project: Project, duration: n
   const key = `cache/transcripts/${hash}.json`;
   const tmp = `${audioPath}.transcript.json`;
   try {
-    if (await storage.exists(storage.kind === 'vercel-blob' ? storage.publicUrl(key) : key)) {
+    if (await storage.exists(key)) {
       await storage.download(key, tmp);
       log('transcrição em cache');
       return JSON.parse(await fs.readFile(tmp, 'utf8')) as Transcript;

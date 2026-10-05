@@ -110,7 +110,7 @@ function FromReference({onDone}: {onDone: (s: StyleConfig) => void}) {
       setUpload(null);
     }
   };
-  const busy = upload !== null || (job !== null && job.status !== 'done' && job.status !== 'error');
+  const busy = upload !== null || (job !== null && job.status !== 'done' && job.status !== 'error' && job.status !== 'cancelled');
   return (
     <div className="card p-5">
       <h2 className="mb-1 font-bold">Copiar o estilo de um reel</h2>
@@ -126,7 +126,7 @@ function FromReference({onDone}: {onDone: (s: StyleConfig) => void}) {
         </button>
       </div>
       {upload !== null && <p className="mt-3 text-sm text-muted">Enviando… {Math.round(upload * 100)}%</p>}
-      {job && job.status !== 'done' && <p className="mt-3 text-sm text-muted">{job.status === 'error' ? `Erro: ${job.error}` : `${job.label} — ${job.progress}%`}</p>}
+      {job && job.status !== 'done' && <p className="mt-3 text-sm text-muted">{(job.status === 'error' || job.status === 'cancelled') ? `Erro: ${job.error}` : `${job.label} — ${job.progress}%`}</p>}
       {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
     </div>
   );

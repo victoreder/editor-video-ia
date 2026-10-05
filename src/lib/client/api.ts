@@ -89,7 +89,7 @@ export async function waitJob(id: string, onUpdate: (j: Job) => void, intervalMs
   for (;;) {
     const {job} = await getJob(id);
     onUpdate(job);
-    if (job.status === 'done' || job.status === 'error') return job;
+    if (job.status === 'done' || job.status === 'error' || job.status === 'cancelled') return job;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
 }

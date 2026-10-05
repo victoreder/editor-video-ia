@@ -6,6 +6,12 @@ import {renderJob} from './render';
 import {referenceJob} from './reference';
 import {matteJob, musicJob, postpackJob, shortsJob, thumbnailJob} from './extras';
 
+class CancelledError extends Error {
+  constructor() {
+    super('cancelado pelo usuário');
+  }
+}
+
 export async function runJob(jobId: string): Promise<void> {
   const db = getDb();
   const job = await db.getJob(jobId);
@@ -15,6 +21,8 @@ export async function runJob(jobId: string): Promise<void> {
     logs.push(s);
     console.log(`[${job.type}] ${s}`);
   };
+  // cancelado pelo usuário? (o report confere no banco e interrompe o job)
+  const cancelled = async () => (await db.getJob(jobId).catch(() => null))?.status === 'cancelled';
   let lastWrite = 0;
   let lastPct = -1;
   const report = async (pct: number, label: string) => {
@@ -26,8 +34,10 @@ export async function runJob(jobId: string): Promise<void> {
     if (now - lastWrite < 700 && p < 100) return;
     lastWrite = now;
     lastPct = p;
+    if (await cancelled()) throw new CancelledError();
     await db.updateJob(jobId, {progress: p, label, status: 'running'}).catch(() => undefined);
   };
+  if (await cancelled()) return;
   await db.updateJob(jobId, {status: 'running', progress: 1, label: 'Iniciando'});
   try {
     let result: Record<string, unknown>;
@@ -65,8 +75,13 @@ export async function runJob(jobId: string): Promise<void> {
       default:
         throw new Error(`tipo de job desconhecido: ${job.type}`);
     }
+    if (await cancelled()) return;
     await db.updateJob(jobId, {status: 'done', progress: 100, label: 'Concluído', result: {...result, logs}});
   } catch (e) {
+    if (e instanceof CancelledError || (await cancelled())) {
+      log('cancelado pelo usuário');
+      return;
+    }
     const msg = e instanceof Error ? e.message : String(e);
     console.error(e);
     await db.updateJob(jobId, {status: 'error', label: 'Erro', error: msg, result: {logs}});

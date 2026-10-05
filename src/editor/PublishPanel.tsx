@@ -31,7 +31,7 @@ export function PublishPanel() {
     await load();
     return done;
   };
-  const busy = job !== null && job.status !== 'done' && job.status !== 'error';
+  const busy = job !== null && job.status !== 'done' && job.status !== 'error' && job.status !== 'cancelled';
   const pp = data?.project.postpack;
   const copy = (t: string) => navigator.clipboard?.writeText(t);
   const longVideo = typeof window !== 'undefined' && localStorage.getItem(`shorts:${projectId}`) === '1';
@@ -39,7 +39,7 @@ export function PublishPanel() {
   return (
     <div className="space-y-6">
       {job && (
-        <div className={`rounded-lg p-2 text-xs ${job.status === 'error' ? 'bg-red-900/50' : 'bg-brand/20'}`}>{job.status === 'error' ? `Erro: ${job.error}` : `${job.label} — ${job.progress}%`}</div>
+        <div className={`rounded-lg p-2 text-xs ${(job.status === 'error' || job.status === 'cancelled') ? 'bg-red-900/50' : 'bg-brand/20'}`}>{(job.status === 'error' || job.status === 'cancelled') ? `Erro: ${job.error}` : `${job.label} — ${job.progress}%`}</div>
       )}
       {data?.project.parentId && (
         <a className="block text-xs text-brand2 underline" href={`/projects/${data.project.parentId}`}>

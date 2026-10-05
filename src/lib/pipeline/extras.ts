@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {getDb, type Job, type PlanVariant, type Project} from '../adapters/db';
-import {getStorage, LocalStorage} from '../adapters/storage';
+import {getStorage, LocalStorage, signMedia} from '../adapters/storage';
 import {bestDirector, getDirector} from '../adapters/director';
 import {config} from '../config';
 import type {EditPlan} from '../plan/schema';
@@ -151,7 +151,7 @@ export async function thumbnailJob(job: Job, report: Reporter) {
     }
     await report(20, 'Escolhendo o melhor frame e renderizando a capa');
     const out = path.join(work, 'cover.jpg');
-    await renderCover(plan, out, mediaMap(plan, toUrl), (job.input.title as string | undefined) ?? project.postpack?.hook?.toUpperCase());
+    await renderCover(plan, out, await signMedia(mediaMap(plan, toUrl), storage), (job.input.title as string | undefined) ?? project.postpack?.hook?.toUpperCase());
     const key = await storage.putFile(`projects/${project.id}/cover-${Date.now()}.jpg`, out, 'image/jpeg');
     await getDb().updateProject(project.id, {thumbKey: key});
     await report(100, 'Capa pronta');

@@ -10,7 +10,25 @@ import {config} from '../../config';
 
 export interface Runner {
   readonly kind: string;
-  start(jobId: string): Promise<void>;
+  /** dispara o job; devolve uma referência para poder parar depois (pid, nome da Sandbox) */
+  start(jobId: string): Promise<string | void>;
+}
+
+/** para um job em execução pela referência devolvida no start (melhor esforço) */
+export async function stopRunner(ref: string | undefined): Promise<void> {
+  if (!ref) return;
+  const [kind, id] = ref.split(':');
+  if (kind === 'pid') {
+    try {
+      process.kill(-Number(id), 'SIGTERM'); // grupo do processo (detached)
+    } catch {
+      /* já terminou */
+    }
+  } else if (kind === 'sandbox') {
+    const {Sandbox} = await import('@vercel/sandbox');
+    const sb = await Sandbox.get({name: id});
+    await sb.stop();
+  }
 }
 
 export class LocalRunner implements Runner {
@@ -28,6 +46,7 @@ export class LocalRunner implements Runner {
       env: process.env,
     });
     child.unref();
+    return child.pid ? `pid:${child.pid}` : undefined;
   }
 }
 
@@ -84,6 +103,7 @@ export class VercelSandboxRunner implements Runner {
       `npx tsx worker/cli.ts ${jobId}`,
     ].join(' && ');
     await sandbox.runCommand({cmd: 'bash', args: ['-lc', setup], env: {...pass, RUNNER: 'inline'}, detached: true});
+    return `sandbox:${sandbox.name}`;
   }
 }
 
