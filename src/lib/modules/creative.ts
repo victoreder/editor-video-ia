@@ -28,6 +28,8 @@ export const CreativeSchema = z.object({
       template: z.enum(['card', 'split', 'takeover', 'pip']),
       kind: z.enum(['video', 'image', 'emoji']),
       query: z.string().describe('3 a 5 palavras EM INGLÊS para buscar no banco de vídeos/fotos'),
+      queries: z.array(z.string()).describe('2 buscas ALTERNATIVAS em inglês (mais genéricas), tentadas se a primeira não achar nada'),
+      scene: z.string().describe('a cena ideal em 1 frase (português), para escolher o melhor vídeo entre os candidatos'),
       emoji: z.string().describe('emoji quando kind = emoji, senão string vazia'),
       caption: z.string().describe('texto curtíssimo opcional (pode ser vazio)'),
       reason: z.string(),
@@ -37,7 +39,7 @@ export const CreativeSchema = z.object({
     z.object({
       start: z.number(),
       end: z.number(),
-      kind: z.enum(['stat', 'list', 'title', 'quote', 'emoji', 'strike', 'chips', 'compare', 'steps', 'chart', 'lowerthird', 'confetti', 'ui', 'behind']),
+      kind: z.enum(['stat', 'list', 'title', 'quote', 'emoji', 'strike', 'chips', 'compare', 'steps', 'chart', 'lowerthird', 'confetti', 'ui', 'behind', 'keyword']),
       value: z.string(),
       label: z.string(),
       title: z.string(),
@@ -221,8 +223,28 @@ export function heuristicCreative(words: TimelineWord[], style: StyleConfig, dur
     // B-roll = cena ilustrativa em tela cheia (sai o apresentador, entra a cena); sem emoji
     if (!q.query) continue;
     ti++;
-    c.broll.push({start: a, end: b, template: 'takeover', kind: 'video', query: q.query, emoji: '', caption: '', reason: 'conceito visual na fala'});
+    c.broll.push({start: a, end: b, template: 'takeover', kind: 'video', query: q.query, queries: [], scene: '', emoji: '', caption: '', reason: 'conceito visual na fala'});
     busy.push([a, b]);
+  }
+
+  // palavras-chave na tela (estilo TikTok): a palavra mais forte e livre de cada frase,
+  // a cada ~3 s. Podem ficar por cima das cenas de B-roll; só não colidem com outro gráfico.
+  const ovFree = (a: number, b: number) => c.overlays.every((o) => b + 0.1 <= o.start || a >= o.end + 0.1);
+  let lastKw = -99;
+  for (const s of sents) {
+    if (s.end > duration - 1.2) continue;
+    const ranked = s.words
+      .map((w, k) => ({w, sc: wordScore(w.text, k)}))
+      .filter((x) => x.sc >= 3 && x.w.start >= 0.4 && x.w.start - lastKw >= 3)
+      .sort((x, y) => y.sc - x.sc);
+    for (const {w} of ranked) {
+      const end = Math.min(w.start + 1.6, Math.max(s.end + 0.3, w.start + 1.2));
+      const text = w.text.replace(/[^\p{L}\p{N}%$]/gu, '').toUpperCase();
+      if (text.length < 3 || !ovFree(w.start - 0.05, end)) continue;
+      c.overlays.push({label: '', title: '', items: [], emoji: '', value: '', start: w.start - 0.05, end, kind: 'keyword', text, reason: `palavra-chave "${w.text}"`});
+      lastKw = w.start;
+      break;
+    }
   }
 
   // gancho: primeira frase vira título (se o estilo usar)
@@ -333,7 +355,7 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
       start: r.start,
       end: r.end,
       template: 'takeover', // tela cheia: sai o apresentador, entra a cena
-      asset: {kind: b.kind, query: b.query, origin: 'none', alternatives: []},
+      asset: {kind: b.kind, query: b.query, queries: (b.queries ?? []).filter(Boolean).slice(0, 3), scene: b.scene || undefined, origin: 'none', alternatives: []},
       caption: b.caption || undefined,
       reason: b.reason,
     });

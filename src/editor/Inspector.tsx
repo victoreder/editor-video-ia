@@ -27,6 +27,7 @@ const OVERLAYS: {kind: OverlayKind; label: string}[] = [
   {kind: 'confetti', label: 'Confete'},
   {kind: 'sticker', label: 'Meme/sticker'},
   {kind: 'behind', label: 'Texto atrás'},
+  {kind: 'keyword', label: 'Palavra-chave'},
 ];
 
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
@@ -207,8 +208,8 @@ export function Inspector({onReplan}: {onReplan: () => void}) {
             </Row>
           </>
         )}
-        {(o.kind === 'lowerthird' || o.kind === 'behind' || o.kind === 'sticker') && (
-          <Row label={o.kind === 'lowerthird' ? 'Nome' : o.kind === 'behind' ? 'Palavra (gigante, atrás de você)' : 'Texto do meme (opcional)'}>
+        {(o.kind === 'lowerthird' || o.kind === 'behind' || o.kind === 'sticker' || o.kind === 'keyword') && (
+          <Row label={o.kind === 'lowerthird' ? 'Nome' : o.kind === 'behind' ? 'Palavra (gigante, atrás de você)' : o.kind === 'keyword' ? 'Palavra-chave (1 a 3 palavras)' : 'Texto do meme (opcional)'}>
             <input className="input" value={o.props.text ?? ''} onChange={(e) => set({text: e.target.value})} />
           </Row>
         )}
@@ -554,14 +555,14 @@ function BrollPicker({b}: {b: EditPlan['broll'][number]}) {
       )}
       {results && (
         <div className="mb-3 grid max-h-64 grid-cols-3 gap-1 overflow-y-auto">
-          {results.length === 0 && <p className="col-span-3 text-xs text-muted">Nada encontrado (configure PEXELS_API_KEY ou suba arquivos na biblioteca).</p>}
+          {results.length === 0 && <p className="col-span-3 text-xs text-muted">Nada encontrado (configure PIXABAY_API_KEY ou PEXELS_API_KEY, ou suba arquivos na biblioteca).</p>}
           {results.map((r) => (
             <button
               key={r.src}
               className="aspect-square overflow-hidden rounded border border-line hover:border-brand"
               title={r.credit}
               onClick={() => {
-                apply((p) => updateBroll(p, b.id, {template: b.template === 'card' && r.kind === 'video' ? 'split' : b.template, asset: {...b.asset, kind: r.kind as 'video' | 'image', src: r.src, query: q, origin: r.origin as 'own' | 'pexels', credit: r.credit, alternatives: results.map((x) => x.src)}}));
+                apply((p) => updateBroll(p, b.id, {template: b.template === 'card' && r.kind === 'video' ? 'split' : b.template, asset: {...b.asset, kind: r.kind as 'video' | 'image', src: r.src, query: q, origin: r.origin as 'own' | 'pexels' | 'pixabay', credit: r.credit, alternatives: results.map((x) => x.src)}}));
                 useEditor.getState().setMedia({...useEditor.getState().media, [r.src]: r.url});
               }}
             >

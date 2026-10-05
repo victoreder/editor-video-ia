@@ -100,11 +100,13 @@ const Page: React.FC<{tc: TimedChunk; dur: number}> = ({tc, dur}) => {
   const outStart = Math.max(inF + 1, dur - Math.round(fps * 0.12));
   const appear = interpolate(frame, [0, inF], [0, 1], clamp);
   const fade = outStart >= dur ? 1 : interpolate(frame, [outStart, dur], [1, 0], clamp);
-  const y = tc.chunk.y ?? 62;
+  const y = tc.chunk.y ?? 70;
   const emojiPop = pop(frame, fps, 2);
   const pill = preset === 'pill';
+  // a faixa da legenda tem a altura de 1 linha: o bloco cresce PARA CIMA (nunca entra na UI do Reels)
+  const bandH = 150 * k * (tc.chunk.scale ?? 1);
   return (
-    <div style={{position: 'absolute', top: `${y}%`, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `0 ${80 * k}px`, opacity: fade}}>
+    <div style={{position: 'absolute', top: `${y}%`, height: bandH, left: 0, right: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', padding: `0 ${80 * k}px`, opacity: fade}}>
       {tc.chunk.emoji && (
         <div style={{fontSize: size * 1.25, transform: `scale(${emojiPop}) rotate(${(1 - emojiPop) * -20}deg)`, marginBottom: 6 * k, filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))'}}>{tc.chunk.emoji}</div>
       )}
@@ -118,10 +120,11 @@ const Page: React.FC<{tc: TimedChunk; dur: number}> = ({tc, dur}) => {
             textAlign: 'center',
             transform: preset === 'bold-pop' ? `scale(${0.85 + 0.15 * appear})` : `translateY(${(1 - appear) * 12}px)`,
             opacity: preset === 'bold-pop' ? 1 : appear,
-            background: pill ? 'rgba(12,12,16,0.82)' : undefined,
-            borderRadius: pill ? size * 0.5 : undefined,
-            padding: pill ? `${size * 0.22}px ${size * 0.55}px` : undefined,
-            boxShadow: pill ? '0 10px 30px rgba(0,0,0,0.35)' : undefined,
+            // SEMPRE com caixa de fundo: contraste garantido em qualquer cena (fundo claro, B-roll, etc.)
+            background: pill ? 'rgba(12,12,16,0.82)' : 'rgba(0,0,0,0.78)',
+            borderRadius: pill ? size * 0.5 : size * 0.26,
+            padding: pill ? `${size * 0.22}px ${size * 0.55}px` : `${size * 0.14}px ${size * 0.36}px`,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.35)',
           }}
         >
           {tc.words.map((w, i) => {

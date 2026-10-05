@@ -147,9 +147,48 @@ const BigEmoji: React.FC<{o: Overlay; life: number}> = ({o, life}) => {
   );
 };
 
+/** palavra-chave da fala, grande e animada (estilo TikTok): entra "batendo" e sai rápido */
+const Keyword: React.FC<{o: Overlay; life: number}> = ({o, life}) => {
+  const {style} = useReel();
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const k = useK();
+  const e = envelope(frame, fps, life, 5);
+  const text = (o.props.text ?? '').toUpperCase();
+  // duas variações que se alternam pelo id: caixa colorida ou texto branco com contorno
+  const boxed = (o.id.charCodeAt(o.id.length - 1) ?? 0) % 2 === 0;
+  const size = (text.length > 14 ? 92 : text.length > 9 ? 112 : 136) * k;
+  const slam = interpolate(frame, [0, 5], [1.45, 1], {...clamp, easing: (x) => 1 - Math.pow(1 - x, 4)});
+  const tilt = boxed ? -3 : 2;
+  return (
+    <div style={{position: 'absolute', top: `${o.y ?? 24}%`, left: 60 * k, right: 60 * k, display: 'flex', justifyContent: 'center', opacity: e.exit * Math.min(1, frame / 2), transform: `scale(${slam}) rotate(${tilt}deg)`}}>
+      <div
+        style={{
+          fontFamily: fontStack(style.fonts.display),
+          fontWeight: style.fonts.displayWeight,
+          fontSize: size,
+          lineHeight: 1.02,
+          letterSpacing: -2 * k,
+          textAlign: 'center',
+          padding: boxed ? `${10 * k}px ${30 * k}px ${14 * k}px` : 0,
+          borderRadius: 18 * k,
+          background: boxed ? style.palette.key : undefined,
+          color: boxed ? '#111' : '#fff',
+          WebkitTextStroke: boxed ? undefined : `${Math.round(size / 16)}px #000`,
+          paintOrder: 'stroke fill',
+          textShadow: boxed ? undefined : '0 8px 30px rgba(0,0,0,0.55)',
+          boxShadow: boxed ? '0 18px 40px rgba(0,0,0,0.4)' : undefined,
+        }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+};
+
 const KIND: Record<Overlay['kind'], React.FC<{o: Overlay; life: number}>> = {
   stat: Stat, list: List, chips: Chips, title: Title, quote: Quote, strike: Strike, emoji: BigEmoji,
-  compare: Compare, steps: Steps, chart: Chart, lowerthird: LowerThird, confetti: Confetti, ui: Terminal, sticker: Sticker, behind: Behind,
+  compare: Compare, steps: Steps, chart: Chart, lowerthird: LowerThird, confetti: Confetti, ui: Terminal, sticker: Sticker, behind: Behind, keyword: Keyword,
 };
 
 export const OverlaysLayer: React.FC<{items: TimedOverlay[]}> = ({items}) => {

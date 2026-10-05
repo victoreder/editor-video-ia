@@ -2,7 +2,7 @@
 // preenche todos os B-rolls sem arquivo.
 import {z} from 'zod';
 import {enqueue} from '@/lib/pipeline/jobs';
-import {searchPexelsPhotos, searchPexelsVideos, libraryMatch} from '@/lib/modules/broll-assets';
+import {searchStockPhotos, searchStockVideos, libraryMatch} from '@/lib/modules/broll-assets';
 import {loadLibrary} from '@/lib/pipeline/process';
 import {getStorage} from '@/lib/adapters/storage';
 import {route} from '@/lib/server/http';
@@ -19,7 +19,7 @@ export async function POST(req: Request, {params}: Ctx) {
   });
 }
 
-/** GET ?q=termos&orientation=portrait → resultados da biblioteca própria + Pexels */
+/** GET ?q=termos&orientation=portrait → resultados da biblioteca própria + Pexels/Pixabay */
 export async function GET(req: Request) {
   return route(async () => {
     const u = new URL(req.url);
@@ -27,12 +27,12 @@ export async function GET(req: Request) {
     const orientation = (u.searchParams.get('orientation') ?? 'portrait') as 'portrait' | 'landscape' | 'square';
     const storage = getStorage();
     const own = libraryMatch(await loadLibrary(), q).map((a) => ({src: a.key, url: storage.publicUrl(a.key), kind: a.kind, origin: 'own', credit: a.name}));
-    const [videos, photos] = await Promise.all([searchPexelsVideos(q, orientation, 8), searchPexelsPhotos(q, orientation, 8)]);
+    const [videos, photos] = await Promise.all([searchStockVideos(q, orientation, 8), searchStockPhotos(q, orientation, 8)]);
     return {
       results: [
         ...own,
-        ...videos.map((v) => ({src: v.url, url: v.url, kind: 'video', origin: 'pexels', credit: v.credit})),
-        ...photos.map((p) => ({src: p.url, url: p.url, kind: 'image', origin: 'pexels', credit: p.credit})),
+        ...videos.map((v) => ({src: v.url, url: v.url, kind: 'video', origin: v.credit.startsWith('Pixabay') ? 'pixabay' : 'pexels', credit: v.credit})),
+        ...photos.map((p) => ({src: p.url, url: p.url, kind: 'image', origin: p.credit.startsWith('Pixabay') ? 'pixabay' : 'pexels', credit: p.credit})),
       ],
     };
   });

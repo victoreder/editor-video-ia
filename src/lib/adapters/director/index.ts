@@ -16,8 +16,9 @@ export type JsonTask<T extends z.ZodType> = {
   system: string;
   user: string;
   schema: T;
-  images?: {mime: 'image/jpeg' | 'image/png'; base64: string; label?: string}[];
-  effort?: 'low' | 'medium' | 'high';
+  /** imagens em base64 ou por URL (miniaturas do banco de vídeos, por exemplo) */
+  images?: Array<{mime: 'image/jpeg' | 'image/png'; base64: string; label?: string} | {url: string; label?: string}>;
+  effort?: 'low' | 'medium' | 'high' | 'xhigh';
 };
 
 export interface Director {
@@ -47,26 +48,35 @@ const creativeUser = (words: TimelineWord[], duration: number) =>
 export class ClaudeDirector implements Director {
   readonly id = 'claude' as const;
   constructor(readonly model = config.anthropicModel) {}
-  private ask<T extends z.ZodType>(system: string, user: string, schema: T, effort: 'low' | 'medium' | 'high'): Promise<z.infer<T>> {
+  private ask<T extends z.ZodType>(system: string, user: string, schema: T, effort: 'low' | 'medium' | 'high' | 'xhigh'): Promise<z.infer<T>> {
     return this.json({name: 'task', system, user, schema, effort});
   }
   async json<T extends z.ZodType>({system, user, schema, effort = 'medium', images = []}: JsonTask<T>): Promise<z.infer<T>> {
     const {default: Anthropic} = await import('@anthropic-ai/sdk');
-    const {zodOutputFormat} = await import('@anthropic-ai/sdk/helpers/zod');
+    const {betaZodOutputFormat} = await import('@anthropic-ai/sdk/helpers/beta/zod');
     const client = new Anthropic();
-    const content: Array<{type: 'text'; text: string} | {type: 'image'; source: {type: 'base64'; media_type: 'image/jpeg' | 'image/png'; data: string}}> = [];
+    type Img = {type: 'image'; source: {type: 'base64'; media_type: 'image/jpeg' | 'image/png'; data: string} | {type: 'url'; url: string}};
+    const content: Array<{type: 'text'; text: string} | Img> = [];
     for (const im of images) {
       if (im.label) content.push({type: 'text', text: im.label});
-      content.push({type: 'image', source: {type: 'base64', media_type: im.mime, data: im.base64}});
+      content.push({type: 'image', source: 'url' in im ? {type: 'url', url: im.url} : {type: 'base64', media_type: im.mime, data: im.base64}});
     }
     content.push({type: 'text', text: user});
-    const res = await client.messages.parse({
+    // Opus 5.5: o raciocínio (adaptive thinking) é sempre ligado e conta no max_tokens.
+    // Com 16k o plano criativo era cortado (max_tokens) e o app caía nas regras sem IA.
+    // Streaming evita timeout de HTTP com max_tokens alto; "fallbacks: default" refaz
+    // o pedido em outro modelo se o Claude recusar por engano.
+    const stream = client.beta.messages.stream({
       model: this.model,
-      max_tokens: 16000,
+      max_tokens: 64000,
       system,
       messages: [{role: 'user', content}],
-      output_config: {effort, format: zodOutputFormat(schema)},
+      thinking: {type: 'adaptive'},
+      output_config: {effort, format: betaZodOutputFormat(schema)},
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
     });
+    const res = await stream.finalMessage();
     if (res.stop_reason === 'refusal') throw new Error('Claude recusou a solicitação');
     if (res.stop_reason === 'max_tokens') throw new Error('resposta do Claude truncada (max_tokens)');
     if (!res.parsed_output) throw new Error('Claude não devolveu JSON válido');
@@ -98,7 +108,7 @@ export class OpenAIDirector implements Director {
     const parts: Array<{type: 'text'; text: string} | {type: 'image_url'; image_url: {url: string}}> = [];
     for (const im of images) {
       if (im.label) parts.push({type: 'text', text: im.label});
-      parts.push({type: 'image_url', image_url: {url: `data:${im.mime};base64,${im.base64}`}});
+      parts.push({type: 'image_url', image_url: {url: 'url' in im ? im.url : `data:${im.mime};base64,${im.base64}`}});
     }
     parts.push({type: 'text', text: user});
     const res = await client.chat.completions.create({

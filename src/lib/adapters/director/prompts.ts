@@ -36,8 +36,8 @@ Você lê a transcrição JÁ CORTADA (tempos em segundos do vídeo final, palav
 
 ESTILO ESCOLHIDO: "${style.name}" — ${style.summary}
 - Zoom: snap entre ${style.camera.punchScale[0]} e ${style.camera.punchScale[1]}, no máximo 1 a cada ${style.camera.punchEvery} s; slow push até ~${(1 + style.camera.push * 3).toFixed(2)}.${style.camera.shake ? ' Shake (tremor de 0,3 s, scale 1.04) só em impacto forte (número chocante, punchline).' : ' Sem shake.'}
-- Gráficos (overlays): cerca de ${style.graphics.perMinute} por minuto. B-roll: cerca de ${style.broll.perMinute} por minuto, sempre template "takeover" (cena em tela cheia).
-- Algo deve mudar na tela no máximo a cada ${style.maxStatic} s (zoom, gráfico, B-roll ou corte).
+- Gráficos (overlays): cerca de ${style.graphics.perMinute} por minuto, MAIS as palavras-chave (kind "keyword", item 3). B-roll: cerca de ${style.broll.perMinute} por minuto, sempre template "takeover" (cena em tela cheia).
+- Algo deve mudar na tela no máximo a cada ${style.maxStatic} s (zoom, palavra-chave, gráfico, B-roll ou corte). Edição de retenção de TikTok/Reels: a atenção "reinicia" a cada mudança visual — o espectador nunca pode ficar olhando só a pessoa falando parada.
 - Transições disponíveis: ${style.transitions.set.join(', ') || 'nenhuma (cortes secos)'}; espaçadas por pelo menos ${style.transitions.minGap} s, só em mudanças de assunto.
 
 1) DESTAQUES DA LEGENDA (accents): índices i das palavras que ganham cor.
@@ -68,14 +68,25 @@ ESTILO ESCOLHIDO: "${style.name}" — ${style.summary}
 | ui     | fala de ferramenta, código, automação, prompt | title (nome do app), items: linhas — "$ comando" é digitado, "✓ feito" fica verde |
 | confetti | conquista, comemoração, "consegui", resultado final | (nenhum) |
 | behind | a 1 ou 2 palavras mais fortes do vídeo, ditas com ênfase — aparecem GIGANTES ATRÁS da pessoa | text (1 palavra, até 10 letras); duração 1,2–2 s; só em planos com o rosto inteiro |
+| keyword | a PALAVRA-CHAVE que a pessoa acabou de dizer (conceito, resultado, dor, promessa, nome de ferramenta) — aparece GRANDE na tela, animada, estilo TikTok | text (1 a 3 palavras, EXATAMENTE as palavras ditas, caixa alta); duração 1,2–2 s |
+
+PALAVRAS-CHAVE (keyword) — o recurso mais usado do vídeo:
+- Uma a cada 3–5 s ao longo de TODO o vídeo, inclusive por cima das cenas de B-roll (texto sobre a cena) e nos trechos sem gráfico.
+- start = início da palavra-gatilho (a palavra aparece junto com a fala, nunca antes nem depois).
+- Escolha a palavra que resume a frase ("FATURAMENTO", "3 CLIENTES", "SEM ANÚNCIO", "AUTOMÁTICO"), nunca palavras vazias ("ENTÃO", "ISSO", "COISA").
 Textos SEMPRE em português, curtíssimos (leitura em 2 s), com as palavras ditas naquele momento. Preencha os campos não usados com string vazia / lista vazia.
 
-4) B-ROLL (broll) — CENA DE ILUSTRAÇÃO em tela cheia: o vídeo da pessoa sai e entra uma cena que mostra o que ela está dizendo naquele momento (a fala continua por baixo):
-- template SEMPRE "takeover" (tela cheia). Nunca card, split ou pip.
-- kind "video" (preferido: cena com movimento real) ou "image" (ilustração/foto): query = 3–5 palavras EM INGLÊS, concretas e visuais, que descrevem a CENA (ex.: "hands typing laptop office", "money counting cash", "crowded store customers buying"). Nada de emoji (campo emoji = string vazia).
-- Duração 2–4 s. Nunca sobrepostos entre si nem com gráficos; ~1,5 s de respiro entre eles.
-- Nos primeiros 10 s, pelo menos 1 cena (gancho visual). Os últimos ~3 s ficam limpos (contato visual no CTA).
-- Variedade: cenas diferentes entre si (nunca duas parecidas seguidas).
+4) B-ROLL (broll) — CENAS DE ILUSTRAÇÃO em tela cheia. É o que mais faz o vídeo parecer editado por profissional. O vídeo da pessoa sai e entra uma cena que MOSTRA o que ela está dizendo naquele momento (a fala e a legenda continuam por cima):
+- Leia a fala procurando IMAGENS: todo substantivo concreto, lugar, ação, objeto, pessoa, emoção ou resultado ("cliente pagando", "celular", "loja vazia", "planilha", "academia", "dinheiro", "cansado", "viajando") é candidato a cena. Conceitos abstratos viram a ação concreta que os representa ("crescimento" → "business team celebrating success office"; "procrastinar" → "person scrolling phone on couch").
+- Cubra 30–50% da duração do vídeo com cenas (talking-head puro cansa). Não deixe passar mais de ~6 s sem cena, exceto no fim.
+- template SEMPRE "takeover". kind "video" (preferido: cena com movimento real) ou "image".
+- query = 3–5 palavras EM INGLÊS, concretas e visuais, como alguém digitaria num banco de vídeos (Pexels/Pixabay): sujeito + ação + lugar ("woman typing laptop cafe", "hands counting cash money", "empty retail store", "doctor talking patient clinic"). Nada abstrato ("success", "motivation" sozinhos não funcionam).
+- queries = 2 alternativas em inglês, cada vez mais genéricas (usadas se a primeira não achar vídeo bom).
+- scene = a cena ideal em 1 frase em português (ex.: "mulher digitando no notebook num café") — serve para escolher o melhor vídeo entre os candidatos.
+- Duração 1,5–3 s (cena curta e no ritmo da fala; acompanhe a frase que a menciona). start = início da palavra que evoca a cena.
+- Nunca sobrepostas entre si; ~1 s de respiro entre cenas. Gráficos (exceto keyword) não ficam por cima de cenas.
+- Nos primeiros 5 s, pelo menos 1 cena (gancho visual). Os últimos ~2 s ficam limpos (contato visual no CTA).
+- Variedade: cenas diferentes entre si (nunca duas parecidas seguidas). caption = string vazia. Nada de emoji (campo emoji = string vazia).
 
 5) TRANSIÇÕES (transitions): instantes (at) de mudança de assunto, de preferência perto de um corte. Lista vazia se o estilo não usa.
 
@@ -83,7 +94,7 @@ Textos SEMPRE em português, curtíssimos (leitura em 2 s), com as palavras dita
 
 Regras gerais:
 - Todos os tempos em segundos do vídeo final, dentro de [0, duração]. Use os tempos das palavras.
-- Nunca coloque gráficos e B-roll ao mesmo tempo.
+- Nunca coloque gráficos e B-roll ao mesmo tempo (a única exceção é keyword, que pode ficar por cima da cena).
 - "reason": uma frase curta explicando a escolha.
 - notes: 1–3 observações para o editor humano (ex.: "o gancho está fraco, considere regravar").`;
 }

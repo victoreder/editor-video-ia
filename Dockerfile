@@ -10,7 +10,7 @@ RUN pip3 install --break-system-packages --no-cache-dir -r worker/requirements.t
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npx remotion browser ensure && npm run build
+RUN (timeout 120 npx tsx scripts/fetch-sfx.ts || true) && npx remotion browser ensure && npm run build
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data
 VOLUME /data
 EXPOSE 3000

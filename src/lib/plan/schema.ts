@@ -180,6 +180,8 @@ export const OverlayKindSchema = z.enum([
   'compare', 'steps', 'chart', 'lowerthird', 'confetti', 'ui', 'sticker',
   // fase 3: texto ATRÁS da pessoa (precisa do recorte, job "matte")
   'behind',
+  // palavra-chave da fala, gigante na tela (estilo TikTok)
+  'keyword',
 ]);
 export type OverlayKind = z.infer<typeof OverlayKindSchema>;
 
@@ -213,10 +215,12 @@ export type Overlay = z.infer<typeof OverlaySchema>;
 export const BrollAssetSchema = z.object({
   kind: z.enum(['video', 'image', 'emoji']),
   src: z.string().optional(), // chave do storage OU URL http(s)
-  query: z.string().optional(), // termos de busca (inglês) para o Pexels
+  query: z.string().optional(), // termos de busca (inglês) para o banco de vídeos (Pexels/Pixabay)
+  queries: z.array(z.string()).optional(), // buscas alternativas (inglês), tentadas em ordem
+  scene: z.string().optional(), // a cena ideal, descrita pela IA (usada para escolher entre os candidatos)
   emoji: z.string().optional(),
   prompt: z.string().optional(), // geração por IA (F2)
-  origin: z.enum(['own', 'pexels', 'ai', 'none']).default('none'),
+  origin: z.enum(['own', 'pexels', 'pixabay', 'ai', 'none']).default('none'),
   alternatives: z.array(z.string()).default([]),
   credit: z.string().optional(),
 });

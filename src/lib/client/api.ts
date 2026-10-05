@@ -26,6 +26,7 @@ export type AppConfig = {
   runner: string;
   models: {claude: string; openai: string};
   pexels: boolean;
+  pixabay?: boolean;
   imageGen: boolean;
   musicAI: boolean;
   videoAI: boolean;

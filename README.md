@@ -19,7 +19,7 @@ Precisa de `ffmpeg` no PATH. Sem nenhuma chave, o app funciona em **modo limitad
 - as **regras** fazem o papel da IA diretora;
 - o **alinhamento do roteiro** substitui a transcrição (cole o texto falado ao criar o projeto).
 
-Com `ANTHROPIC_API_KEY` + `ELEVENLABS_API_KEY` (ou `GROQ_API_KEY`) + `PEXELS_API_KEY`, o fluxo fica completo.
+Com `ANTHROPIC_API_KEY` + `ELEVENLABS_API_KEY` (ou `GROQ_API_KEY`) + `PIXABAY_API_KEY` (grátis, chave na hora em pixabay.com/api/docs) ou `PEXELS_API_KEY`, o fluxo fica completo.
 
 | Comando | O que faz |
 |---|---|
@@ -30,6 +30,7 @@ Com `ANTHROPIC_API_KEY` + `ELEVENLABS_API_KEY` (ou `GROQ_API_KEY`) + `PEXELS_API
 | `npm run worker:daemon` | worker em fila para a VPS (`RUNNER=queue`, `WORKER_CONCURRENCY`) |
 | `npm run mcp` | servidor MCP: edite os vídeos conversando no Claude Code/Desktop |
 | `npm run studio` | Remotion Studio com a composição |
+| `npm run sfx:fetch` | troca os efeitos sintetizados por gravações reais do Mixkit (roda sozinho na Sandbox/Docker) |
 | `npm run sfx:generate` / `npm run music:generate` | regenera sons e trilhas sintetizados |
 | `scripts/make-test-video.sh foto.png out.mp4` | vídeo de teste (foto com rosto + "fala" sintética) |
 
@@ -59,8 +60,8 @@ Tudo que a IA decide e tudo que você ajusta fica em **um único JSON, o `EditPl
 | 03 Legendas | `modules/captions.ts`, `modules/safezone.ts`, `remotion/captions/Captions.tsx` (5 presets) |
 | 04 Câmera | `lib/plan/camera.ts` (nível por corte, snap/push/shake centrados no rosto) |
 | 05 Rosto | `worker/face_track.py` (YuNet/OpenCV), `lib/media/face.ts`, reframe barato em `lib/plan/frame.ts` |
-| 06 B-roll | `modules/broll-assets.ts` (biblioteca própria → Pexels → IA), `remotion/broll/Broll.tsx` (card, split, tela cheia, pip) |
-| 07 Motion graphics | `remotion/overlays/` — número, lista, chips, título, citação, emoji, riscado, comparação, passos, barras, nome/cargo, terminal, confete, meme/sticker e texto atrás da pessoa |
+| 06 B-roll | `modules/broll-assets.ts` (biblioteca própria → Pixabay e/ou Pexels com 3 buscas por cena, e a IA escolhe pela miniatura → imagem por IA; sem nada que combine, a cena sai), `remotion/broll/Broll.tsx` |
+| 07 Motion graphics | `remotion/overlays/` — palavra-chave gigante (estilo TikTok, a cada 3–5 s), número, lista, chips, título, citação, emoji, riscado, comparação, passos, barras, nome/cargo, terminal, confete, meme/sticker e texto atrás da pessoa |
 | 08 Som | `modules/sfx.ts`, `scripts/generate-sfx.ts`, música com ducking em `remotion/components/Extras.tsx`, trilha por IA em `adapters/musicgen` |
 | 09 Cor e fundo | `media/grade.ts` (o rosto primeiro, nunca escurece), recorte da pessoa em `worker/matte.py` (MediaPipe) |
 | 10 Estilos | `src/lib/styles` (4 prontos + próprios em "Meu estilo", `/styles`) |
@@ -81,7 +82,7 @@ Tudo que a IA decide e tudo que você ajusta fica em **um único JSON, o `EditPl
 1. Crie um **Blob store** (gera `BLOB_READ_WRITE_TOKEN`; o app passa a usar o Blob sozinho).
 2. Ainda em **Storage**, crie um banco **Postgres (Neon)** e conecte ao projeto. A `DATABASE_URL` é criada sozinha e as tabelas são criadas no primeiro acesso, sem SQL à mão. (O Supabase continua funcionando como alternativa: `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` e as migrations em `supabase/migrations`.)
 3. Defina **`APP_PASSWORD`** (a senha de acesso). Sem ela, o sistema publicado fica bloqueado para todo mundo; com ela, só entra quem souber a senha, e a API inteira exige login (ninguém usa as suas chaves de IA). Opcional: `APP_API_TOKEN`, para o servidor MCP acessar a API.
-4. Coloque as chaves de IA que tiver (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `PEXELS_API_KEY`…).
+4. Coloque as chaves de IA que tiver (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `PIXABAY_API_KEY`…).
 
 Na Vercel, `RUNNER` já vira `vercel-sandbox` e o repositório é detectado pelas variáveis de sistema. Com o repositório privado, defina `GIT_TOKEN`.
 

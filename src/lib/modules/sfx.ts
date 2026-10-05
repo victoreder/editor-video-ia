@@ -8,7 +8,8 @@ import {placeClips, projectPoint, projectRange} from '../plan/timeline';
 import {uid} from '../util/id';
 
 const STRENGTH: Record<SfxKind, number> = {impact: 5, riser: 4, whoosh: 3, glitch: 3, swoosh: 2, sparkle: 2, ding: 2, pop: 1, click: 1, typing: 1};
-export const SFX_GAIN_DB: Record<SfxKind, number> = {impact: -8, riser: -10, whoosh: -12, swoosh: -13, glitch: -13, sparkle: -14, ding: -14, pop: -14, click: -16, typing: -18};
+// sons de apoio: bem abaixo da voz (o som nunca pode competir com a fala)
+export const SFX_GAIN_DB: Record<SfxKind, number> = {impact: -14, riser: -16, whoosh: -15, swoosh: -16, glitch: -17, sparkle: -18, ding: -18, pop: -17, click: -19, typing: -21};
 /** onde fica o "pico" de cada arquivo (o som começa antes do evento por esse tanto) */
 export const SFX_LEAD: Record<SfxKind, number> = {whoosh: 0.18, swoosh: 0.12, riser: 1.4, impact: 0, pop: 0, click: 0, sparkle: 0, glitch: 0, ding: 0, typing: 0};
 
@@ -28,16 +29,16 @@ export function planSfx(plan: EditPlan): SfxCue[] {
     const c = plan.clips.find((x) => x.id === tr.clipId);
     if (c) add(c.sourceId, c.inSec, tr.kind === 'glitch' ? 'glitch' : pickT(i));
   });
-  const OVERLAY_SFX: Partial<Record<string, SfxKind>> = {strike: 'whoosh', title: 'impact', behind: 'impact', confetti: 'sparkle', ui: 'typing', lowerthird: 'swoosh', chart: 'swoosh'};
-  for (const o of plan.overlays) add(o.sourceId, o.start, OVERLAY_SFX[o.kind] ?? style.sfx.enter);
-  plan.broll.forEach((b, i) => add(b.sourceId, b.start, b.template === 'takeover' || b.template === 'split' ? pickT(i + 1) : style.sfx.enter));
-  // só metade dos snap zooms ganha som (todo zoom com o mesmo som cansa)
-  if (style.sfx.punch && style.sfx.density !== 'low') plan.camera.beats.filter((z) => z.style === 'punch').forEach((z, i) => i % 2 === 0 && add(z.sourceId, z.start, style.sfx.punch));
-  if (plan.hook && style.sfx.hook && placed[0]) add(placed[0].clip.sourceId, placed[0].clip.inSec + 0.01, style.sfx.hook);
+  // Som só onde o olho já está mudando de cena (como editor humano faz): whoosh na entrada
+  // de cada cena de B-roll e um "pop" discreto nos gráficos de informação. Palavras-chave,
+  // zooms e cortes ficam secos (som em todo zoom vira metralhadora), e sem riser no gancho.
+  const OVERLAY_SFX: Partial<Record<string, SfxKind>> = {stat: 'pop', list: 'pop', chips: 'pop', steps: 'pop', compare: 'swoosh', chart: 'swoosh', strike: 'swoosh', ui: 'typing', confetti: 'sparkle', lowerthird: 'swoosh'};
+  for (const o of plan.overlays) add(o.sourceId, o.start, OVERLAY_SFX[o.kind]);
+  plan.broll.forEach((b, i) => add(b.sourceId, b.start, b.template === 'takeover' || b.template === 'split' ? pickT(i + 1) ?? 'whoosh' : style.sfx.enter));
 
   // espaçamento: o mais forte vence numa janela de 0,15 s; depois, um intervalo mínimo
   // entre sons (pelo estilo) para não virar uma sequência de efeitos
-  const minGap = style.sfx.density === 'high' ? 1.0 : style.sfx.density === 'low' ? 2.0 : 1.4;
+  const minGap = style.sfx.density === 'high' ? 2.0 : style.sfx.density === 'low' ? 3.5 : 2.5;
   ev.sort((a, b) => a.t - b.t);
   const kept: Ev[] = [];
   for (const e of ev) {
