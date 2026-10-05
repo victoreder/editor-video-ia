@@ -55,7 +55,8 @@ export async function uploadToTarget(target: UploadTarget, key: string, file: Fi
     const r = await (target.presigned ? uploadPresigned : upload)(target.pathname, file, opts);
     return r.url;
   }
-  await putWithProgress(target.url, file, onProgress, target.mode === 's3' ? {'Content-Type': file.type || 'application/octet-stream'} : {});
+  // S3: manda exatamente o content-type que o servidor assinou
+  await putWithProgress(target.url, file, onProgress, target.mode === 's3' ? (target.headers ?? {'Content-Type': file.type || 'application/octet-stream'}) : {});
   return key;
 }
 
