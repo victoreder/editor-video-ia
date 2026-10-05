@@ -9,7 +9,7 @@ export async function readJsonKey<T>(key: string, fallback: T): Promise<T> {
   const storage = getStorage();
   const tmp = path.join(os.tmpdir(), `js-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
   try {
-    await storage.download(storage.kind === 'vercel-blob' ? await blobUrl(key) : key, tmp);
+    await storage.download(key, tmp);
     return JSON.parse(await fs.readFile(tmp, 'utf8')) as T;
   } catch {
     return fallback;
@@ -23,8 +23,3 @@ export async function writeJsonKey(key: string, data: unknown) {
   await storage.put(key, JSON.stringify(data, null, 1), 'application/json');
 }
 
-/** no Blob a chave vira URL; procura pelo pathname */
-async function blobUrl(key: string): Promise<string> {
-  const {head} = await import('@vercel/blob');
-  return (await head(key)).url;
-}

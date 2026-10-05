@@ -9,7 +9,7 @@ import path from 'node:path';
 import {config} from '../config';
 import {FORMATS, type EditPlan, type FormatId} from '../plan/schema';
 import {getDb, type ExportItem, type Job, type PlanVariant} from '../adapters/db';
-import {getStorage, LocalStorage} from '../adapters/storage';
+import {getStorage, LocalStorage, signMedia} from '../adapters/storage';
 import {loudnorm, qaRendered} from '../media/ffmpeg';
 import {bestThumbnailTime, coverTitle} from '../modules/thumbnail';
 import {toFcpxml} from '../modules/fcpxml';
@@ -138,7 +138,7 @@ export async function renderJob(job: Job, report: Reporter, log: (s: string) => 
     const exports: ExportItem[] = [];
     for (const [i, format] of formats.entries()) {
       const plan = planForFormat(base, format);
-      const media = mediaMap(plan, toUrl);
+      const media = await signMedia(mediaMap(plan, toUrl), storage);
       const span = 90 / formats.length;
       const p0 = 5 + i * span;
       const id = uid('exp');

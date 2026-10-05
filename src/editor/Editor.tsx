@@ -181,11 +181,16 @@ export function Editor({projectName, variants, onSwitchVariant, onBack}: {projec
       </header>
 
       {job && job.status !== 'done' && (
-        <div className={`px-4 py-1.5 text-xs ${job.status === 'error' ? 'bg-red-900/60' : 'bg-brand/30'}`}>
-          {job.status === 'error' ? `Erro: ${job.error}` : `${job.label} — ${job.progress}%`}
-          {job.status === 'error' && (
+        <div className={`px-4 py-1.5 text-xs ${(job.status === 'error' || job.status === 'cancelled') ? 'bg-red-900/60' : 'bg-brand/30'}`}>
+          {(job.status === 'error' || job.status === 'cancelled') ? `Erro: ${job.error}` : `${job.label} — ${job.progress}%`}
+          {(job.status === 'error' || job.status === 'cancelled') && (
             <button className="ml-3 underline" onClick={() => setJob(null)}>
               ok
+            </button>
+          )}
+          {(job.status === 'queued' || job.status === 'running') && (
+            <button className="ml-3 underline" onClick={() => api(`/api/projects/${projectId}/cancel`, {method: 'POST'}).catch(() => undefined)}>
+              parar
             </button>
           )}
         </div>
@@ -331,14 +336,14 @@ function ExportPanel({onClose}: {onClose: () => void}) {
         <input type="checkbox" checked={clean} onChange={() => setClean(!clean)} /> Também a versão limpa (sem legendas/gráficos, para editar em outro programa)
       </label>
       <p className="my-3 text-xs text-muted">MP4 H.264 ~12 Mbps, áudio em −14 LUFS com QA automático, legenda .srt, capa com título e timeline .fcpxml (DaVinci/Premiere/Final Cut).</p>
-      <button className="btn-primary w-full py-2" disabled={!formats.length || dirty || (job !== null && job.status !== 'done' && job.status !== 'error')} onClick={start}>
+      <button className="btn-primary w-full py-2" disabled={!formats.length || dirty || (job !== null && job.status !== 'done' && job.status !== 'error' && job.status !== 'cancelled')} onClick={start}>
         {dirty ? 'Salvando alterações…' : 'Renderizar'}
       </button>
       {job && (
         <div className="mt-3 text-sm">
-          <div className="mb-1 text-muted">{job.status === 'error' ? `Erro: ${job.error}` : job.label}</div>
+          <div className="mb-1 text-muted">{(job.status === 'error' || job.status === 'cancelled') ? `Erro: ${job.error}` : job.label}</div>
           <div className="h-2 overflow-hidden rounded bg-panel2">
-            <div className={`h-full transition-all ${job.status === 'error' ? 'bg-red-600' : 'bg-brand'}`} style={{width: `${job.progress}%`}} />
+            <div className={`h-full transition-all ${(job.status === 'error' || job.status === 'cancelled') ? 'bg-red-600' : 'bg-brand'}`} style={{width: `${job.progress}%`}} />
           </div>
         </div>
       )}

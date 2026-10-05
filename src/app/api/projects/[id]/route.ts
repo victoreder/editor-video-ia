@@ -2,6 +2,7 @@ import {getDb} from '@/lib/adapters/db';
 import {getStorage} from '@/lib/adapters/storage';
 import {fail, json, route} from '@/lib/server/http';
 import {CreateProjectSchema} from '@/lib/server/schemas';
+import {cancelProjectJobs} from '@/lib/pipeline/jobs';
 
 export const dynamic = 'force-dynamic';
 type Ctx = {params: Promise<{id: string}>};
@@ -35,6 +36,8 @@ export async function PATCH(req: Request, {params}: Ctx) {
 export async function DELETE(_: Request, {params}: Ctx) {
   return route(async () => {
     const {id} = await params;
+    // para o que estiver rodando antes de apagar (senão o worker recria arquivos)
+    await cancelProjectJobs(id).catch(() => undefined);
     await getStorage().delete(`projects/${id}`).catch(() => undefined);
     await getDb().deleteProject(id);
     return json({ok: true});

@@ -55,16 +55,36 @@ export default function Home() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {projects.map((p) => (
-            <a key={p.id} href={`/projects/${p.id}`} className="card group overflow-hidden transition hover:border-brand">
-              <div className="aspect-[9/16] bg-panel2">{p.thumbUrl && <img src={p.thumbUrl} alt="" className="h-full w-full object-cover opacity-90 group-hover:opacity-100" />}</div>
-              <div className="p-3">
-                <div className="truncate text-sm font-semibold">{p.name}</div>
-                <div className="mt-1 flex items-center justify-between text-xs text-muted">
-                  <span>{STATUS[p.status]}</span>
-                  <span>{DIRECTOR_LABEL[p.director]}</span>
+            <div key={p.id} className="group relative">
+              <a href={`/projects/${p.id}`} className="card block overflow-hidden transition hover:border-brand">
+                <div className="aspect-[9/16] bg-panel2">{p.thumbUrl && <img src={p.thumbUrl} alt="" className="h-full w-full object-cover opacity-90 group-hover:opacity-100" />}</div>
+                <div className="p-3">
+                  <div className="truncate text-sm font-semibold">{p.name}</div>
+                  <div className="mt-1 flex items-center justify-between text-xs text-muted">
+                    <span>{STATUS[p.status]}</span>
+                    <span>{DIRECTOR_LABEL[p.director]}</span>
+                  </div>
                 </div>
-              </div>
-            </a>
+              </a>
+              <button
+                title="Excluir"
+                aria-label={`Excluir ${p.name}`}
+                className="absolute right-2 top-2 z-10 rounded-md bg-black/70 px-2 py-1 text-xs text-red-300 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!confirm(`Excluir "${p.name}"? O vídeo e as edições serão apagados.`)) return;
+                  try {
+                    await api(`/api/projects/${p.id}`, {method: 'DELETE'});
+                    setProjects((cur) => cur?.filter((x) => x.id !== p.id) ?? null);
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : String(err));
+                  }
+                }}
+              >
+                Excluir
+              </button>
+            </div>
           ))}
         </div>
       )}
