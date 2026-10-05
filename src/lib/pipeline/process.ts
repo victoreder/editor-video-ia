@@ -8,7 +8,7 @@ import type {EditPlan, FaceTrack, Source, Word} from '../plan/schema';
 import {getDb, type Job, type PlanVariant, type Project} from '../adapters/db';
 import {getStorage} from '../adapters/storage';
 import {getTranscriber, type Transcript} from '../adapters/transcriber';
-import {getDirector, type Director} from '../adapters/director';
+import {bestDirector, getDirector, type Director} from '../adapters/director';
 import {extractAudio, frameAt, makePreview, makeProxy, probe} from '../media/ffmpeg';
 import {trackFace} from '../media/face';
 import {analyzeAudio} from '../media/silence';
@@ -183,10 +183,10 @@ export async function processProject(job: Job, report: Reporter, log: (s: string
     for (const [k, v] of variants.entries()) {
       const director = getDirector(v);
       const pct = 70 + (k / variants.length) * 25;
-      await report(pct, `IA diretora (${director.id}): zoom, B-roll, gráficos e sons`);
+      await report(pct, `IA diretora (${director.id === 'heuristic' ? 'regras, sem IA' : director.model}): zoom, B-roll, palavras-chave e sons`);
       let plan: EditPlan = await planCreative({...base, meta: {...base.meta, director: director.id, model: director.model}}, director, log);
       await report(pct + 12 / variants.length, 'Buscando B-roll');
-      plan = finalize(await resolveBrollAssets(plan, library, project.id, {allowAi: process.env.BROLL_AI === '1', log}));
+      plan = finalize(await resolveBrollAssets(plan, library, project.id, {allowAi: process.env.BROLL_AI !== '0', director, log}));
       plan = await generateMattes(plan, project.id, workDir, log);
       // se a IA pedida não tinha chave, o plano foi feito por regras: salva como tal
       const variant: PlanVariant = plan.meta.director === 'heuristic' && v !== 'heuristic' && variants.length === 1 ? 'heuristic' : v;
@@ -208,10 +208,10 @@ export async function replanProject(job: Job, report: Reporter, log: (s: string)
   const director = getDirector((job.input.director as PlanVariant) ?? variant);
   const plan = await db.getPlan(job.projectId, variant);
   if (!plan) throw new Error('plano não encontrado');
-  await report(20, `IA diretora (${director.id}) replanejando`);
+  await report(20, `IA diretora (${director.id === 'heuristic' ? 'regras, sem IA' : director.model}) replanejando`);
   let next = await planCreative({...plan, meta: {...plan.meta, director: director.id, model: director.model}}, director, log);
   await report(70, 'Buscando B-roll');
-  next = finalize(await resolveBrollAssets(next, await loadLibrary(), job.projectId, {allowAi: process.env.BROLL_AI === '1', log}));
+  next = finalize(await resolveBrollAssets(next, await loadLibrary(), job.projectId, {allowAi: process.env.BROLL_AI !== '0', director, log}));
   const work = await fs.mkdtemp(path.join(os.tmpdir(), 'replan-'));
   next = await generateMattes(next, job.projectId, work, log).finally(() => fs.rm(work, {recursive: true, force: true}));
   await db.savePlan(job.projectId, variant, next);
@@ -226,7 +226,7 @@ export async function brollJob(job: Job, report: Reporter, log: (s: string) => v
   const plan = await db.getPlan(job.projectId, variant);
   if (!plan) throw new Error('plano não encontrado');
   await report(30, 'Buscando B-roll');
-  const next = finalize(await resolveBrollAssets(plan, await loadLibrary(), job.projectId, {allowAi: true, log}));
+  const next = finalize(await resolveBrollAssets(plan, await loadLibrary(), job.projectId, {allowAi: true, director: bestDirector(), log}));
   await db.savePlan(job.projectId, variant, next);
   await report(100, 'Pronto');
   return {variant};

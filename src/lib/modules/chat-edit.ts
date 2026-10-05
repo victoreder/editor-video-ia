@@ -19,7 +19,7 @@ export const OpSchema = z.object({
   id: z.string().describe('id do item (para set_caption_text, accent_word, update_overlay, remove, retime, clip_speed); senão vazio'),
   start: z.number().describe('segundos do vídeo final (quando a operação precisa de tempo); senão 0'),
   end: z.number().describe('fim em segundos do vídeo final; senão 0'),
-  kind: z.string().describe('add_overlay: stat|list|title|quote|strike|chips|compare|steps|chart|lowerthird|confetti|ui|behind; add_zoom: punch|push|shake; add_sfx: whoosh|pop|impact|…; add_broll: takeover (padrão)|split|pip|card; set_grade: none|clean|punchy|film; caption_preset: bold-pop|karaoke|pill|editorial|clean'),
+  kind: z.string().describe('add_overlay: stat|list|title|quote|strike|chips|compare|steps|chart|lowerthird|confetti|ui|behind|keyword (text = 1 a 3 palavras-chave gigantes na tela); add_zoom: punch|push|shake; add_sfx: whoosh|pop|impact|…; add_broll: takeover (padrão)|split|pip|card; set_grade: none|clean|punchy|film; caption_preset: bold-pop|karaoke|pill|editorial|clean'),
   text: z.string().describe('texto (legenda, título, gancho, CTA, citação, palavra a destacar, busca do B-roll em inglês, id do estilo)'),
   value: z.string().describe('stat: valor (ex.: 87%); senão vazio'),
   label: z.string(),

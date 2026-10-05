@@ -27,6 +27,7 @@ const OVERLAYS: {kind: OverlayKind; label: string}[] = [
   {kind: 'confetti', label: 'Confete'},
   {kind: 'sticker', label: 'Meme/sticker'},
   {kind: 'behind', label: 'Texto atrás'},
+  {kind: 'keyword', label: 'Palavra-chave'},
 ];
 
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
@@ -207,8 +208,8 @@ export function Inspector({onReplan}: {onReplan: () => void}) {
             </Row>
           </>
         )}
-        {(o.kind === 'lowerthird' || o.kind === 'behind' || o.kind === 'sticker') && (
-          <Row label={o.kind === 'lowerthird' ? 'Nome' : o.kind === 'behind' ? 'Palavra (gigante, atrás de você)' : 'Texto do meme (opcional)'}>
+        {(o.kind === 'lowerthird' || o.kind === 'behind' || o.kind === 'sticker' || o.kind === 'keyword') && (
+          <Row label={o.kind === 'lowerthird' ? 'Nome' : o.kind === 'behind' ? 'Palavra (gigante, atrás de você)' : o.kind === 'keyword' ? 'Palavra-chave (1 a 3 palavras)' : 'Texto do meme (opcional)'}>
             <input className="input" value={o.props.text ?? ''} onChange={(e) => set({text: e.target.value})} />
           </Row>
         )}

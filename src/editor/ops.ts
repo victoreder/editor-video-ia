@@ -201,10 +201,11 @@ export function addOverlay(plan: EditPlan, t: number, kind: OverlayKind): {plan:
     confetti: {emoji: '🎉'},
     sticker: {emoji: '😂', text: ''},
     behind: {text: 'UAU'},
+    keyword: {text: 'PALAVRA'},
   };
   const props: Overlay['props'] = DEFAULTS[kind] ?? {text: 'TEXTO'};
   const layout = kind === 'title' || kind === 'confetti' || kind === 'behind' ? 'full' : kind === 'ui' || kind === 'lowerthird' ? 'top' : 'card';
-  const dur = kind === 'behind' ? 1.6 : kind === 'confetti' ? 2 : 2.5;
+  const dur = kind === 'behind' || kind === 'keyword' ? 1.6 : kind === 'confetti' ? 2 : 2.5;
   const r2 = dur !== 2.5 ? anchorRange(plan, t, t + dur) ?? r : r;
   const o: Overlay = {id: uid('ov'), sourceId: r2.sourceId, start: r2.start, end: r2.end, kind, props, layout};
   return {plan: {...plan, overlays: [...plan.overlays, o]}, id: o.id};

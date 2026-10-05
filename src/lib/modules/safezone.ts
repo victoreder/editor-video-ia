@@ -10,7 +10,7 @@ import {projectedCaptionTimes} from './captions';
 
 // UI das plataformas em 1080x1920 (px cobertos pelo app)
 export const PLATFORMS: Record<Platform, {top: number; bottom: number; right: number; name: string}> = {
-  instagram: {top: 220, bottom: 420, right: 130, name: 'Instagram Reels'},
+  instagram: {top: 220, bottom: 430, right: 130, name: 'Instagram Reels'},
   tiktok: {top: 160, bottom: 480, right: 150, name: 'TikTok'},
   shorts: {top: 140, bottom: 380, right: 140, name: 'YouTube Shorts'},
   all: {top: 220, bottom: 480, right: 150, name: 'Reels + TikTok + Shorts'},
@@ -62,17 +62,16 @@ export function spanFace(probe: (t: number) => ScreenFace | null, t0: number, t1
 export type Occupied = {t0: number; t1: number; y0: number; y1: number}; // px de tela
 
 /**
- * Faixa fixa da legenda: parte inferior do vídeo, mas acima da interface da plataforma
- * (no Reels os ~22% de baixo ficam cobertos por botões e texto). O topo do bloco fica
- * em ~64% da altura — nunca no meio do rosto, nunca colado embaixo.
+ * Faixa fixa da legenda: o MAIS BAIXO possível sem entrar na interface da plataforma
+ * (no Reels, os ~430 px de baixo têm nome, descrição e barra de áudio). Assim a legenda
+ * nunca fica no rosto. `blockHeightPx` é a altura de uma linha com a caixa de fundo.
  */
-export function captionBand(plan: Pick<EditPlan, 'format' | 'platform'>, blockHeightPx = 190) {
+export function captionBand(plan: Pick<EditPlan, 'format' | 'platform'>, blockHeightPx = 150) {
   const {height: H} = plan.format;
   const k = H / 1920;
   const P = PLATFORMS[plan.platform ?? 'instagram'];
   const h = blockHeightPx * k;
-  const maxY = H - P.bottom * k - h; // último ponto antes da UI da plataforma
-  const y = Math.min(1230 * k, maxY);
+  const y = H - P.bottom * k - h; // último ponto antes da UI da plataforma
   return {y, h, top: y, bottom: y + h};
 }
 
@@ -103,7 +102,7 @@ export function placeCard(plan: EditPlan, t0: number, t1: number, hPx: number): 
   return null;
 }
 
-export const CARD_HEIGHT_PX: Record<string, number> = {stat: 360, list: 440, chips: 220, quote: 420, strike: 260, emoji: 0, title: 0, compare: 400, steps: 440, chart: 520, lowerthird: 0, confetti: 0, ui: 0, sticker: 0, behind: 0, broll: 460};
+export const CARD_HEIGHT_PX: Record<string, number> = {stat: 360, list: 440, chips: 220, quote: 420, strike: 260, emoji: 0, title: 0, compare: 400, steps: 440, chart: 520, lowerthird: 0, confetti: 0, ui: 0, sticker: 0, behind: 0, keyword: 200, broll: 460};
 
 /** calcula o `y` dos cards (gráficos e B-roll "card") e devolve as áreas ocupadas */
 export function placeCards(plan: EditPlan): {plan: EditPlan; occupied: Occupied[]} {

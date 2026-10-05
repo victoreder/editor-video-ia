@@ -86,7 +86,7 @@ export async function shortsJob(job: Job, report: Reporter, log: (s: string) => 
     const d = getDirector(project.director === 'compare' ? 'claude' : project.director === 'heuristic' ? 'heuristic' : project.director);
     child = await planCreative(child, d, log);
     child.hook = {title: m.title.toUpperCase(), until: 2};
-    child = finalize(await resolveBrollAssets(child, await loadLibrary(), project.id, {log}));
+    child = finalize(await resolveBrollAssets(child, await loadLibrary(), project.id, {allowAi: process.env.BROLL_AI !== '0', director: d, log}));
     const now = new Date().toISOString();
     const id = uid('prj');
     const variant: PlanVariant = child.meta.director === 'heuristic' ? 'heuristic' : (child.meta.director as PlanVariant);

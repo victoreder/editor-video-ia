@@ -111,14 +111,32 @@ test('plano criativo heurístico + aplicação + finalize produzem um EditPlan v
   assert.ok(!runQa(out).some((i) => i.level === 'error'));
 });
 
-test('safezone: legenda abaixo do queixo e dentro da área segura', () => {
+test('safezone: legenda o mais baixo possível, logo acima da interface do Reels', () => {
   const p = basePlan(words('uma frase de teste para posicionar', 0));
   const chunks = placeCaptions(p);
   for (const c of chunks) {
     const y = (c.y! / 100) * 1920;
-    assert.ok(y >= 0.44 * 1920, `y=${y} deve ficar abaixo do queixo`);
-    assert.ok(y + 190 <= 1920 - 420 + 1, 'dentro da área segura do Instagram');
+    assert.ok(y >= 0.65 * 1920, `y=${y} deve ficar na parte de baixo (longe do rosto)`);
+    assert.ok(y + 150 <= 1920 - 430 + 1, 'dentro da área segura do Instagram');
+    assert.ok(y + 150 >= 1920 - 430 - 2, 'colada no limite de baixo (o mais baixo possível)');
   }
+});
+
+test('diretor sem IA: palavras-chave na tela e sons só nas mudanças de cena', () => {
+  const p = basePlan(
+    words('O faturamento da empresa cresceu 87% em 3 meses. Nossos clientes compram pelo celular todos os dias. A estratégia de marketing mudou tudo para o negócio.', 0),
+  );
+  const tw = timelineWords(p);
+  const c = heuristicCreative(tw, getStyle('dynamic'), tw.at(-1)!.end + 0.3);
+  assert.ok(c.overlays.some((o) => o.kind === 'keyword' && o.text.length >= 3), JSON.stringify(c.overlays.map((o) => o.kind)));
+  const out = finalize(applyCreative(p, c));
+  // palavra-chave vira gráfico com posição calculada (fora da faixa da legenda)
+  const kw = out.overlays.filter((o) => o.kind === 'keyword');
+  assert.ok(kw.length >= 1 && kw.every((o) => o.y !== undefined));
+  // nenhum som em palavra-chave nem em zoom: só onde a cena muda
+  const kwStarts = new Set(kw.map((o) => o.start));
+  assert.ok(!out.audio.sfx.some((s) => kwStarts.has(s.at)));
+  assert.ok(!out.audio.sfx.some((s) => s.kind === 'impact' || s.kind === 'riser'));
 });
 
 test('SFX: transições geram whoosh e sons próximos são deduplicados', () => {

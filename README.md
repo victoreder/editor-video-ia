@@ -30,6 +30,7 @@ Com `ANTHROPIC_API_KEY` + `ELEVENLABS_API_KEY` (ou `GROQ_API_KEY`) + `PEXELS_API
 | `npm run worker:daemon` | worker em fila para a VPS (`RUNNER=queue`, `WORKER_CONCURRENCY`) |
 | `npm run mcp` | servidor MCP: edite os vídeos conversando no Claude Code/Desktop |
 | `npm run studio` | Remotion Studio com a composição |
+| `npm run sfx:fetch` | troca os efeitos sintetizados por gravações reais do Mixkit (roda sozinho na Sandbox/Docker) |
 | `npm run sfx:generate` / `npm run music:generate` | regenera sons e trilhas sintetizados |
 | `scripts/make-test-video.sh foto.png out.mp4` | vídeo de teste (foto com rosto + "fala" sintética) |
 
@@ -59,8 +60,8 @@ Tudo que a IA decide e tudo que você ajusta fica em **um único JSON, o `EditPl
 | 03 Legendas | `modules/captions.ts`, `modules/safezone.ts`, `remotion/captions/Captions.tsx` (5 presets) |
 | 04 Câmera | `lib/plan/camera.ts` (nível por corte, snap/push/shake centrados no rosto) |
 | 05 Rosto | `worker/face_track.py` (YuNet/OpenCV), `lib/media/face.ts`, reframe barato em `lib/plan/frame.ts` |
-| 06 B-roll | `modules/broll-assets.ts` (biblioteca própria → Pexels → IA), `remotion/broll/Broll.tsx` (card, split, tela cheia, pip) |
-| 07 Motion graphics | `remotion/overlays/` — número, lista, chips, título, citação, emoji, riscado, comparação, passos, barras, nome/cargo, terminal, confete, meme/sticker e texto atrás da pessoa |
+| 06 B-roll | `modules/broll-assets.ts` (biblioteca própria → Pexels com 3 buscas por cena, e a IA escolhe pela miniatura → imagem por IA; sem nada que combine, a cena sai), `remotion/broll/Broll.tsx` |
+| 07 Motion graphics | `remotion/overlays/` — palavra-chave gigante (estilo TikTok, a cada 3–5 s), número, lista, chips, título, citação, emoji, riscado, comparação, passos, barras, nome/cargo, terminal, confete, meme/sticker e texto atrás da pessoa |
 | 08 Som | `modules/sfx.ts`, `scripts/generate-sfx.ts`, música com ducking em `remotion/components/Extras.tsx`, trilha por IA em `adapters/musicgen` |
 | 09 Cor e fundo | `media/grade.ts` (o rosto primeiro, nunca escurece), recorte da pessoa em `worker/matte.py` (MediaPipe) |
 | 10 Estilos | `src/lib/styles` (4 prontos + próprios em "Meu estilo", `/styles`) |
