@@ -2,6 +2,7 @@ referencias/
 node_modules/
 .env*
 !.env.example
+!.env.worker.example
 .DS_Store
 .data/
 .next/

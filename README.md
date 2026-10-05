@@ -85,6 +85,8 @@ Tudo que a IA decide e tudo que você ajusta fica em **um único JSON, o `EditPl
 
 Na Vercel, `RUNNER` já vira `vercel-sandbox` e o repositório é detectado pelas variáveis de sistema. Com o repositório privado, defina `GIT_TOKEN`.
 
+Para não depender das cotas da Vercel Sandbox (plano Hobby), rode o processamento no seu servidor: veja [docs/worker-vps.md](docs/worker-vps.md) (`RUNNER=queue` + `docker-compose.worker.yml`). Para limpar snapshots antigas da Sandbox, abra logado `/api/sandbox/cleanup`.
+
 **VPS (fase 3):** `docker compose up -d` sobe o app, o worker em fila e o MinIO (`docker compose up -d --scale worker=2` para mais renders em paralelo). A troca é só nas variáveis de ambiente. Rode também `supabase/migrations/0002_phase3.sql` se usar o Supabase.
 
 ## Status
