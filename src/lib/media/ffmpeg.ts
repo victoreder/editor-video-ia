@@ -25,7 +25,45 @@ export function run(cmd: string, args: string[], onStderr?: (line: string) => vo
 export type Probe = {duration: number; width: number; height: number; fps: number; hasAudio: boolean; rotation: number};
 
 export async function probe(file: string): Promise<Probe> {
-  const {stdout} = await run(FFPROBE, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file]);
+  let stdout: string;
+  try {
+    ({stdout} = await run(FFPROBE, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file]));
+  } catch (e) {
+    // sem ffprobe instalado: lê as mesmas informações da saída do ffmpeg
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return probeWithFfmpeg(file);
+    throw e;
+  }
+  return parseProbeJson(stdout);
+}
+
+/** fallback: `ffmpeg -i` imprime duração, resolução, fps, rotação e faixas no stderr */
+export async function probeWithFfmpeg(file: string): Promise<Probe> {
+  const stderr = await new Promise<string>((resolve, reject) => {
+    const p = spawn(FFMPEG, ['-hide_banner', '-i', file], {stdio: ['ignore', 'ignore', 'pipe']});
+    let err = '';
+    p.stderr.on('data', (d) => (err += d));
+    p.on('error', (e) => reject((e as NodeJS.ErrnoException).code === 'ENOENT' ? new Error('ffmpeg não está instalado no servidor de processamento') : e));
+    p.on('close', () => resolve(err)); // sem saída definida o ffmpeg sai com erro; o que importa é o stderr
+  });
+  return parseFfmpegInfo(stderr);
+}
+
+export function parseFfmpegInfo(stderr: string): Probe {
+  const d = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  const duration = d ? +d[1] * 3600 + +d[2] * 60 + +d[3] : 0;
+  const vLine = stderr.split('\n').find((l) => /Stream #.*Video:/.test(l)) ?? '';
+  const size = vLine.match(/,\s*(\d{2,5})x(\d{2,5})/);
+  const fps = vLine.match(/([\d.]+)\s*fps/) ?? vLine.match(/([\d.]+)\s*tbr/);
+  const rot = stderr.match(/rotation of\s*(-?[\d.]+)\s*degrees/) ?? stderr.match(/rotate\s*:\s*(-?\d+)/);
+  const rotation = Math.abs(Number(rot?.[1] ?? 0)) % 180;
+  let width = size ? +size[1] : 0;
+  let height = size ? +size[2] : 0;
+  if (rotation === 90) [width, height] = [height, width];
+  if (!duration || !width) throw new Error(`não consegui ler o vídeo: ${stderr.slice(-400)}`);
+  return {duration, width, height, fps: Math.round(Number(fps?.[1] ?? 30)) || 30, hasAudio: /Stream #.*Audio:/.test(stderr), rotation};
+}
+
+function parseProbeJson(stdout: string): Probe {
   const j = JSON.parse(stdout) as {
     format: {duration?: string};
     streams: {codec_type: string; width?: number; height?: number; avg_frame_rate?: string; r_frame_rate?: string; duration?: string; tags?: {rotate?: string}; side_data_list?: {rotation?: number}[]}[];

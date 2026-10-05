@@ -6,6 +6,17 @@ import {renderJob} from './render';
 import {referenceJob} from './reference';
 import {matteJob, musicJob, postpackJob, shortsJob, thumbnailJob} from './extras';
 
+/** o servidor de processamento tem ffmpeg? (erro claro em vez de "spawn ffmpeg ENOENT" no meio) */
+async function ensureFfmpeg() {
+  const {run} = await import('../media/ffmpeg');
+  const bin = process.env.FFMPEG_PATH ?? 'ffmpeg';
+  try {
+    await run(bin, ['-version']);
+  } catch {
+    throw new Error(`ffmpeg não encontrado no servidor de processamento (${bin}). Na Vercel o download do ffmpeg falhou: clique em "Tentar de novo"; se repetir, me avise.`);
+  }
+}
+
 class CancelledError extends Error {
   constructor() {
     super('cancelado pelo usuário');
@@ -40,6 +51,7 @@ export async function runJob(jobId: string): Promise<void> {
   if (await cancelled()) return;
   await db.updateJob(jobId, {status: 'running', progress: 1, label: 'Iniciando'});
   try {
+    await ensureFfmpeg();
     let result: Record<string, unknown>;
     switch (job.type as Job['type']) {
       case 'process':
