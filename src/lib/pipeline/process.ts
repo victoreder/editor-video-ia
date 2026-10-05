@@ -12,6 +12,7 @@ import {getDirector, type Director} from '../adapters/director';
 import {extractAudio, frameAt, makeProxy, probe} from '../media/ffmpeg';
 import {trackFace} from '../media/face';
 import {measureGrade} from '../media/grade';
+import {analyzeAudio} from '../media/silence';
 import {generateMattes} from '../media/matte';
 import {resolveProjectStyle} from '../styles/store';
 import {readJsonKey} from '../server/json-store';
@@ -71,7 +72,19 @@ export async function prepareSources(project: Project, report: Reporter, workDir
       await extractAudio(proxy, audio);
       audioKey = await storage.putFile(`projects/${project.id}/audio/${up.id}.mp3`, audio, 'audio/mpeg');
     }
-    sources.push({id: up.id, name: up.name, key: up.key, proxyKey, audioKey, duration: pinfo.duration, width: pinfo.width, height: pinfo.height, fps: pinfo.fps, hasAudio: pinfo.hasAudio});
+    // pausas e respiros medidos no áudio (guardadas a partir de 0,12 s; o corte escolhe o limite)
+    let pauses: Source['pauses'];
+    if (pinfo.hasAudio) {
+      await report(base + step * 0.42, `Medindo pausas e respiros de ${up.name}`);
+      try {
+        const a = await analyzeAudio(audio, {minPause: 0.12});
+        pauses = a.pauses;
+        log(`${up.name}: ${a.pauses.filter((p) => p.end - p.start >= 0.3).length} pausas/respiros acima de 0,3 s (fala ${a.speechDb.toFixed(0)} dB, limiar ${a.threshold.toFixed(0)} dB)`);
+      } catch (e) {
+        log(`medição de pausas falhou (${String(e).slice(0, 100)}); usando só a transcrição`);
+      }
+    }
+    sources.push({id: up.id, name: up.name, key: up.key, proxyKey, audioKey, duration: pinfo.duration, width: pinfo.width, height: pinfo.height, fps: pinfo.fps, hasAudio: pinfo.hasAudio, pauses});
     if (i === 0) {
       const thumb = path.join(workDir, 'thumb.jpg');
       await frameAt(proxy, Math.min(1, pinfo.duration / 2), thumb, 360).catch(() => undefined);
@@ -133,7 +146,7 @@ export async function processProject(job: Job, report: Reporter, log: (s: string
     await report(62, 'Corrigindo a transcrição');
     const words = await correctWords(rawWords, project.glossary, primary, log);
     await report(66, 'Escolhendo takes e cortando silêncios');
-    const base = await basePlan({sources, words, faceTracks: faces, style: project.style, styleConfig, platform: project.platform, director: primary, level: project.aggressiveness, script: project.script, log});
+    const base = await basePlan({sources, words, faceTracks: faces, style: project.style, styleConfig, platform: project.platform, director: primary, level: project.aggressiveness, minPause: project.cutPause, removeMistakes: project.removeMistakes, script: project.script, log});
     base.grade = {...base.grade, perSource: grades};
     await applyProjectMusic(base, project, workDir, log);
     const library = await loadLibrary();

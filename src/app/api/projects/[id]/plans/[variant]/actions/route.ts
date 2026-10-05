@@ -17,16 +17,18 @@ const Body = z.object({
   plan: EditPlanSchema,
   action: z.enum(['autocut', 'captions', 'finalize', 'restyle', 'qa', 'srt']),
   level: z.enum(['gentle', 'medium', 'tight']).optional(),
+  minPause: z.number().min(0.1).max(2).optional(),
+  removeMistakes: z.boolean().optional(),
   style: StyleIdSchema.optional(),
 });
 
 export async function POST(req: Request) {
   return route(async () => {
-    const {plan, action, level, style} = Body.parse(await req.json());
+    const {plan, action, level, style, minPause, removeMistakes} = Body.parse(await req.json());
     switch (action) {
       case 'autocut': {
-        const {clips} = autoCut(plan.sources, plan.words, level ?? 'medium', true);
-        const next = {...plan, clips: assignClipZoom(snapClipsToWords(clips, plan.words), styleOf(plan))};
+        const {clips, report} = autoCut(plan.sources, plan.words, level ?? 'medium', removeMistakes !== false, minPause);
+        const next = {...plan, cutReport: report, clips: assignClipZoom(snapClipsToWords(clips, plan.words), styleOf(plan))};
         return {plan: finalize({...next, captions: {...next.captions, chunks: buildCaptions(next)}})};
       }
       case 'captions':

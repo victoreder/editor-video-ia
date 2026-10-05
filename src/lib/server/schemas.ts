@@ -10,6 +10,8 @@ export const CreateProjectSchema = z.object({
   glossary: z.array(z.string()).default([]),
   script: z.string().max(20000).optional(),
   aggressiveness: z.enum(['gentle', 'medium', 'tight']).default('medium'),
+  cutPause: z.number().min(0.1).max(2).optional(),
+  removeMistakes: z.boolean().default(true),
   musicKey: z.string().optional(),
 });
 

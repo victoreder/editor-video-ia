@@ -106,6 +106,7 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
   const [glossary, setGlossary] = useState('');
   const [script, setScript] = useState('');
   const [aggr, setAggr] = useState('medium');
+  const [mistakes, setMistakes] = useState(true);
   const [music, setMusic] = useState('builtin:music/upbeat.mp3');
   const [musicFile, setMusicFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -128,6 +129,7 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
           director,
           platform,
           aggressiveness: aggr,
+          removeMistakes: mistakes,
           glossary: glossary.split(',').map((s) => s.trim()).filter(Boolean),
           script: script.trim() || undefined,
           musicKey: music === 'none' || music === 'upload' ? undefined : music,
@@ -243,10 +245,13 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
           <div>
             <label className="label">Cortes</label>
             <select className="input" value={aggr} onChange={(e) => setAggr(e.target.value)}>
-              <option value="gentle">Suave (mantém respiros)</option>
-              <option value="medium">Médio</option>
-              <option value="tight">Agressivo (ritmo rápido)</option>
+              <option value="gentle">Suave — corta só pausas longas (&gt; 0,6 s)</option>
+              <option value="medium">Médio — corta pausas &gt; 0,35 s</option>
+              <option value="tight">Todo respiro — corta pausas &gt; 0,2 s (ritmo rápido)</option>
             </select>
+            <label className="mt-2 flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={mistakes} onChange={() => setMistakes(!mistakes)} /> Remover erros, repetições e "pera, vou de novo" (fica só a versão completa)
+            </label>
           </div>
           <div>
             <label className="label">Música de fundo</label>

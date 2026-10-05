@@ -50,8 +50,9 @@ function putWithProgress(url: string, file: File, onProgress: (f: number) => voi
 /** envia um arquivo ao destino devolvido pela API; retorna a chave final */
 export async function uploadToTarget(target: UploadTarget, key: string, file: File, onProgress: (f: number) => void): Promise<string> {
   if (target.mode === 'vercel-blob') {
-    const {upload} = await import('@vercel/blob/client');
-    const r = await upload(target.pathname, file, {access: 'public', handleUploadUrl: target.handleUploadUrl, multipart: file.size > 20e6, onUploadProgress: (p) => onProgress(p.percentage / 100)});
+    const {upload, uploadPresigned} = await import('@vercel/blob/client');
+    const opts = {access: 'public' as const, handleUploadUrl: target.handleUploadUrl, multipart: file.size > 20e6, onUploadProgress: (p: {percentage: number}) => onProgress(p.percentage / 100)};
+    const r = await (target.presigned ? uploadPresigned : upload)(target.pathname, file, opts);
     return r.url;
   }
   await putWithProgress(target.url, file, onProgress, target.mode === 's3' ? {'Content-Type': file.type || 'application/octet-stream'} : {});

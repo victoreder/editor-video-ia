@@ -86,6 +86,8 @@ export const SourceSchema = z.object({
   height: z.number(),
   fps: z.number(),
   hasAudio: z.boolean().default(true),
+  // pausas e respiros medidos no áudio (media/silence.ts), em segundos da fonte
+  pauses: z.array(z.object({start: z.number(), end: z.number(), kind: z.enum(['silence', 'breath'])})).optional(),
 });
 export type Source = z.infer<typeof SourceSchema>;
 
@@ -308,6 +310,16 @@ export const EditPlanSchema = z.object({
   hook: HookSchema.optional(),
   outro: EndCardSchema.optional(),
   progressBar: z.boolean().default(false),
+  /** o que o corte automático removeu (respiros, erros, repetições) — para conferir e restaurar */
+  cutReport: z
+    .object({
+      keptSec: z.number(),
+      removedSec: z.number(),
+      pausesCut: z.number(),
+      pauseSec: z.number(),
+      removed: z.array(z.object({text: z.string(), start: z.number(), end: z.number(), sourceId: z.string(), reason: z.string()})),
+    })
+    .optional(),
   meta: z.object({
     director: z.enum(['claude', 'openai', 'heuristic']),
     model: z.string(),

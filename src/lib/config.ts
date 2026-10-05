@@ -4,11 +4,19 @@ import path from 'node:path';
 
 const env = (k: string, d = '') => process.env[k] ?? d;
 
+// Blob store conectado com prefixo próprio (ex.: VIDEOS_READ_WRITE_TOKEN): o SDK
+// do @vercel/blob só lê BLOB_READ_WRITE_TOKEN, então copiamos para ele.
+if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  const alt = Object.entries(process.env).find(([k, v]) => k.endsWith('_READ_WRITE_TOKEN') && v?.startsWith('vercel_blob_rw_'));
+  if (alt) process.env.BLOB_READ_WRITE_TOKEN = alt[1];
+}
+
 export const config = {
   dataDir: path.resolve(env('DATA_DIR', '.data')),
   publicBaseUrl: env('PUBLIC_BASE_URL', 'http://localhost:3000'),
 
-  storage: env('STORAGE', process.env.BLOB_READ_WRITE_TOKEN ? 'vercel-blob' : 'local') as 'local' | 'vercel-blob' | 's3',
+  // Blob com chave (BLOB_READ_WRITE_TOKEN) ou no modo novo sem chave (BLOB_STORE_ID + OIDC da Vercel)
+  storage: env('STORAGE', process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? 'vercel-blob' : 'local') as 'local' | 'vercel-blob' | 's3',
   // Postgres da Vercel/Neon (DATABASE_URL ou POSTGRES_URL) → postgres; Supabase → supabase; senão JSON local
   db: env('DB', process.env.DATABASE_URL || process.env.POSTGRES_URL ? 'postgres' : process.env.SUPABASE_URL ? 'supabase' : 'local') as 'local' | 'supabase' | 'postgres',
   databaseUrl: env('DATABASE_URL', env('POSTGRES_URL')),

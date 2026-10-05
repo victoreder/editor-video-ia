@@ -48,6 +48,8 @@ export type Project = {
   script?: string; // roteiro colado (alinhamento / transcrição sem API)
   musicKey?: string;
   aggressiveness: 'gentle' | 'medium' | 'tight';
+  cutPause?: number; // pausa mínima cortada (s); vazio = pelo nível
+  removeMistakes?: boolean; // remover erros e repetições (padrão: sim)
   status: 'draft' | 'processing' | 'ready' | 'rendering' | 'error';
   error?: string;
   uploads: UploadedSource[];
