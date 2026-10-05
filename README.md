@@ -77,7 +77,7 @@ Tudo que a IA decide e tudo que você ajusta fica em **um único JSON, o `EditPl
 
 **Vercel (fase 1):** o `vercel.json` publica um único serviço (`app`, Next.js). O processamento pesado roda numa Vercel Sandbox, criada pelo app, com o mesmo commit do deploy. No projeto da Vercel:
 1. Crie um **Blob store** (gera `BLOB_READ_WRITE_TOKEN`; o app passa a usar o Blob sozinho).
-2. Crie o banco no **Supabase**, rode `supabase/migrations/0001_init.sql` e `0002_phase3.sql`, e defina `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (o app passa a usar o Supabase sozinho).
+2. Ainda em **Storage**, crie um banco **Postgres (Neon)** e conecte ao projeto. A `DATABASE_URL` é criada sozinha e as tabelas são criadas no primeiro acesso, sem SQL à mão. (O Supabase continua funcionando como alternativa: `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` e as migrations em `supabase/migrations`.)
 3. Coloque as chaves de IA que tiver (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `PEXELS_API_KEY`…).
 
 Na Vercel, `RUNNER` já vira `vercel-sandbox` e o repositório é detectado pelas variáveis de sistema. Com o repositório privado, defina `GIT_TOKEN`.

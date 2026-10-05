@@ -8,6 +8,7 @@ import type {EditPlan} from '../../plan/schema';
 import type {Db, Job, PlanVariant, Project} from './types';
 
 export * from './types';
+import {PostgresDb} from './postgres';
 
 const now = () => new Date().toISOString();
 
@@ -183,8 +184,10 @@ export class SupabaseDb implements Db {
   }
 }
 
+export {PostgresDb};
+
 let instance: Db | null = null;
 export function getDb(): Db {
-  if (!instance) instance = config.db === 'supabase' ? new SupabaseDb() : new LocalJsonDb();
+  if (!instance) instance = config.db === 'postgres' ? new PostgresDb(config.databaseUrl) : config.db === 'supabase' ? new SupabaseDb() : new LocalJsonDb();
   return instance;
 }
