@@ -16,7 +16,11 @@ export function ChatPanel() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({behavior: 'smooth'}), [msgs]);
+  // chaves: o Chrome novo devolve uma Promise no scrollIntoView, e o React trataria
+  // esse retorno como função de limpeza ("i is not a function" ao trocar de aba/enviar)
+  useEffect(() => {
+    end.current?.scrollIntoView({behavior: 'smooth'});
+  }, [msgs]);
 
   const send = async (message: string) => {
     if (!message.trim() || busy) return;
@@ -25,12 +29,13 @@ export function ChatPanel() {
     setBusy(true);
     try {
       const plan = useEditor.getState().plan!;
-      const r = await api<{plan: EditPlan; reply: string; applied: number; engine: string}>(`/api/projects/${projectId}/plans/${variant}/chat`, {
+      const r = await api<{plan: EditPlan; reply: string; applied: number; skipped?: string[]; engine: string}>(`/api/projects/${projectId}/plans/${variant}/chat`, {
         method: 'POST',
         json: {plan, message, history: msgs.slice(-6)},
       });
       if (r.applied > 0) useEditor.getState().apply(() => r.plan);
-      setMsgs((m) => [...m, {role: 'assistant', text: `${r.reply}${r.applied ? ` (${r.applied} alteração${r.applied > 1 ? 'ões' : ''} — ⌘Z desfaz)` : ''}`}]);
+      const skipped = r.skipped?.length ? ` · ${r.skipped.length} parte${r.skipped.length > 1 ? 's' : ''} do pedido não deu para aplicar` : '';
+      setMsgs((m) => [...m, {role: 'assistant', text: `${r.reply}${r.applied ? ` (${r.applied} alteração${r.applied > 1 ? 'ões' : ''} — ⌘Z desfaz)` : ''}${skipped}`}]);
     } catch (e) {
       setMsgs((m) => [...m, {role: 'assistant', text: `Erro: ${e instanceof Error ? e.message : String(e)}`}]);
     } finally {

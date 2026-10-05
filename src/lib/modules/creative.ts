@@ -340,8 +340,9 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
   }
 
   // destaques e emojis vindos da IA (índices das palavras do vídeo cortado)
-  let chunks = plan.captions.chunks;
-  if (creative.accents.length || creative.emojis.length) {
+  // sem emoji na legenda (inclusive os de planos antigos, ao replanejar)
+  let chunks = plan.captions.chunks.map((c) => (c.emoji ? {...c, emoji: undefined} : c));
+  if (creative.accents.length) {
     const acc = new Set(creative.accents.map((i) => tw[i]).filter(Boolean).map((w) => `${w.sourceId}@${w.srcStart}`));
     chunks = chunks.map((c) => {
       const words = c.words.map((w) => {
@@ -363,7 +364,7 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
     hook: creative.hook && style.hook ? {title: creative.hook, until: 2} : undefined,
     outro: style.cta ? {title: style.cta, duration: 1.6} : undefined,
     progressBar: style.progress,
-    grade: {...plan.grade, look: 'none'}, // cor original; filtro só se escolhido à mão
+    grade: {...plan.grade, look: 'none', perSource: {}}, // cor original; filtro só se escolhido à mão
     meta: {...plan.meta, notes: [...creative.notes]},
   };
   next.transitions = placeTransitions(next, creative.transitions, style);
