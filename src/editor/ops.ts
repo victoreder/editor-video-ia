@@ -199,7 +199,7 @@ export function addOverlay(plan: EditPlan, t: number, kind: OverlayKind): {plan:
   return {plan: {...plan, overlays: [...plan.overlays, o]}, id: o.id};
 }
 
-export function addBroll(plan: EditPlan, t: number, asset?: Partial<BrollSegment['asset']>, template: BrollSegment['template'] = 'split'): {plan: EditPlan; id?: string} {
+export function addBroll(plan: EditPlan, t: number, asset?: Partial<BrollSegment['asset']>, template: BrollSegment['template'] = 'takeover'): {plan: EditPlan; id?: string} {
   const r = anchorRange(plan, t, t + 3);
   if (!r) return {plan};
   const b: BrollSegment = {
@@ -207,8 +207,8 @@ export function addBroll(plan: EditPlan, t: number, asset?: Partial<BrollSegment
     sourceId: r.sourceId,
     start: r.start,
     end: r.end,
-    template: asset?.kind === 'emoji' || !asset ? 'card' : template,
-    asset: {kind: 'emoji', emoji: '✨', origin: 'none', alternatives: [], ...asset},
+    template,
+    asset: {kind: 'video', origin: 'none', alternatives: [], ...asset},
   };
   return {plan: {...plan, broll: [...plan.broll, b]}, id: b.id};
 }

@@ -199,7 +199,7 @@ export function buildCaptions(plan: Pick<EditPlan, 'words' | 'clips' | 'style' |
   // só palavras que sobrevivem aos cortes (as cortadas não viram legenda)
   const kept = timelineWords(plan).map((tw) => plan.words.find((w) => w.sourceId === tw.sourceId && w.start === tw.srcStart)!);
   const chunks = chunkWords(kept.filter(Boolean), {maxWords: style.captions.maxWords, upper: style.captions.uppercase});
-  return decorateChunks(chunks, {emphasisRate: style.captions.emphasisRate, emojiEvery: style.captions.emojiEvery});
+  return decorateChunks(chunks, {emphasisRate: style.captions.emphasisRate, emojiEvery: 0}); // sem emojis na legenda
 }
 
 // ---------------------------------------------------------------- SRT

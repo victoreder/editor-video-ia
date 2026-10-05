@@ -250,6 +250,7 @@ export const SfxCueSchema = z.object({
   kind: SfxKindSchema,
   gainDb: z.number().default(0),
   auto: z.boolean().default(true), // gerado pelo planner (re-planejar substitui)
+  variant: z.number().int().min(0).max(2).optional(), // 0 = original, 1/2 = outro tom (sfx/<kind>-2|3.wav)
 });
 export type SfxCue = z.infer<typeof SfxCueSchema>;
 

@@ -3,7 +3,7 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import type {MusicBed, SfxCue} from '../../lib/plan/schema';
-import {SFX_GAIN_DB, SFX_LEAD, dbToGain} from '../../lib/modules/sfx';
+import {SFX_GAIN_DB, dbToGain, sfxFile, sfxLead} from '../../lib/modules/sfx';
 import {clamp, envelope, pop} from '../anim';
 import {fontStack} from '../fonts';
 import {useReel} from '../context';
@@ -94,10 +94,10 @@ export const SfxLayer: React.FC<{cues: {cue: SfxCue; t: number}[]; volume: numbe
   return (
     <>
       {cues.map(({cue, t}) => {
-        const start = Math.max(0, Math.round((t - SFX_LEAD[cue.kind]) * fps));
+        const start = Math.max(0, Math.round((t - sfxLead(cue)) * fps));
         return (
           <Sequence key={cue.id} from={start} durationInFrames={Math.round(fps * 3)} layout="none" name={`sfx: ${cue.kind}`}>
-            <Audio src={staticFile(`sfx/${cue.kind}.wav`)} volume={Math.min(1, volume * dbToGain(SFX_GAIN_DB[cue.kind] + cue.gainDb + 12))} />
+            <Audio src={staticFile(sfxFile(cue))} volume={Math.min(1, volume * dbToGain(SFX_GAIN_DB[cue.kind] + cue.gainDb + 12))} />
           </Sequence>
         );
       })}

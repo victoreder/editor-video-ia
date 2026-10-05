@@ -83,7 +83,26 @@ const sfx: Record<string, Float32Array> = {
 
 const out = path.join(process.cwd(), 'public', 'sfx');
 fs.mkdirSync(out, {recursive: true});
+/** mesma forma em outro tom (reamostragem): variações para o som não ficar repetitivo */
+function repitch(data: Float32Array, factor: number) {
+  const n = Math.floor(data.length / factor);
+  const outData = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = i * factor;
+    const a = Math.floor(x);
+    outData[i] = data[a] + (data[Math.min(a + 1, data.length - 1)] - data[a]) * (x - a);
+  }
+  return outData;
+}
+export const SFX_VARIANT_PITCH = [1, 0.86, 1.16];
+
 for (const [name, data] of Object.entries(sfx)) {
   writeWav(path.join(out, `${name}.wav`), data);
   console.log(`sfx/${name}.wav (${(data.length / SR).toFixed(2)} s)`);
+  // variações 2 e 3 (o riser mantém a duração aproximada para o pico continuar no lugar)
+  SFX_VARIANT_PITCH.slice(1).forEach((f, k) => {
+    const v = repitch(data, name === 'riser' ? 1 + (f - 1) * 0.3 : f);
+    writeWav(path.join(out, `${name}-${k + 2}.wav`), v);
+    console.log(`sfx/${name}-${k + 2}.wav (${(v.length / SR).toFixed(2)} s)`);
+  });
 }

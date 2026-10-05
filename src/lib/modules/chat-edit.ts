@@ -107,8 +107,10 @@ export function applyOps(plan: EditPlan, ops: Op[]): {plan: EditPlan; applied: n
           break;
         }
         case 'add_broll': {
-          const template = (['card', 'split', 'takeover', 'pip'].includes(op.kind) ? op.kind : 'split') as 'card' | 'split' | 'takeover' | 'pip';
-          const r = addBroll(p, t(op.start), op.text ? {kind: 'video', query: op.text, emoji: op.emoji || undefined, origin: 'none', alternatives: []} : {kind: 'emoji', emoji: op.emoji || '✨', origin: 'none', alternatives: []}, template);
+          // B-roll = cena em tela cheia (só muda se a pessoa pedir outro formato); sem emoji
+          if (!op.text) break;
+          const template = (['card', 'split', 'takeover', 'pip'].includes(op.kind) ? op.kind : 'takeover') as 'card' | 'split' | 'takeover' | 'pip';
+          const r = addBroll(p, t(op.start), {kind: 'video', query: op.text, origin: 'none', alternatives: []}, template);
           p = r.plan;
           if (r.id && op.end > op.start) p = retimeItem(p, 'broll', r.id, t(op.start), op.end);
           break;

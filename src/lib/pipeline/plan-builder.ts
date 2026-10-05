@@ -70,7 +70,7 @@ export async function planCuts(
   }
   const {clips, report} = buildCuts(sources, words, removals, {level: opts.level, minPause: opts.minPause});
   opts.log?.(`cortes: ${report.pausesCut} pausas/respiros (${report.pauseSec.toFixed(1)} s) e ${report.removed.length} trecho(s) com erro/repetição — ficaram ${report.keptSec.toFixed(1)} s de ${(report.keptSec + report.removedSec).toFixed(1)} s`);
-  return {clips: snapClipsToWords(clips, words), report};
+  return {clips: snapClipsToWords(clips, words, sources), report};
 }
 
 /** Plano criativo (IA ou regras) + regras mecânicas. Mantém clipes/legendas editados. */
@@ -149,7 +149,7 @@ export function restyle(plan: EditPlan, target: StyleId | StyleConfig): EditPlan
       })),
     },
     progressBar: style.progress,
-    grade: {...plan.grade, look: style.grade},
+    // grade fica como está: trocar de estilo não aplica filtro de cor
     outro: style.cta ? {title: style.cta, duration: 1.6} : undefined,
     hook: style.hook ? plan.hook : undefined,
   };

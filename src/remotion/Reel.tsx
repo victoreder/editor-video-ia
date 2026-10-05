@@ -76,20 +76,22 @@ export const Reel: React.FC<ReelProps> = ({plan, media, selectedId, layers = {}}
   const timed = useTimed(plan);
   const resolve = useMemo(() => makeResolver(media), [media]);
   const t = frame / fps;
-  const layout = layoutAt(timed.broll, t);
+  // B-roll sem cena (nada encontrado) ou de emoji não aparece: a pessoa continua na tela
+  const broll = useMemo(() => timed.broll.filter(({b}) => b.asset.kind !== 'emoji' && Boolean(resolve(b.asset.src))), [timed.broll, resolve]);
+  const layout = layoutAt(broll, t);
   const show = {captions: true, broll: true, overlays: true, music: true, sfx: true, hook: true, progress: true, outro: true, ...layers};
   // gráfico "title" em tela cheia esconde a legenda por baixo
   const hideCaptions: Array<[number, number]> = timed.overlays.filter((o) => o.o.kind === 'title').map((o) => [o.t0, o.t1]);
-  timed.broll.filter((b) => b.b.template === 'takeover').forEach((b) => hideCaptions.push([b.t0, b.t1]));
+  // a legenda continua durante a cena em tela cheia (a fala segue por baixo)
   const outroFrames = Math.round((plan.outro?.duration ?? 0) * fps);
   const musicSrc = resolve(plan.audio.music?.src);
 
   return (
     <ReelProvider value={{plan, style, resolve, selectedId}}>
       <AbsoluteFill style={{backgroundColor: style.palette.bg}}>
-        {show.broll && <BrollLayer items={timed.broll} below />}
+        {show.broll && <BrollLayer items={broll} below />}
         <SpeakerLayer placed={timed.placed} beats={timed.beats} layout={layout} />
-        {show.broll && <BrollLayer items={timed.broll} />}
+        {show.broll && <BrollLayer items={broll} />}
         {show.overlays && <OverlaysLayer items={timed.overlays} />}
         {show.captions && <CaptionsLayer chunks={timed.chunks} hideRanges={hideCaptions} />}
         {show.hook && plan.hook && (
