@@ -33,6 +33,8 @@ Com `ANTHROPIC_API_KEY` + `ELEVENLABS_API_KEY` (ou `GROQ_API_KEY`) + `PEXELS_API
 | `npm run sfx:generate` / `npm run music:generate` | regenera sons e trilhas sintetizados |
 | `scripts/make-test-video.sh foto.png out.mp4` | vídeo de teste (foto com rosto + "fala" sintética) |
 
+**Acesso:** localmente (`npm run dev`) o sistema fica aberto. Em produção, exige a senha de `APP_PASSWORD` (sessão de 30 dias, cookie assinado), e a API aceita também `Authorization: Bearer <APP_API_TOKEN>`.
+
 ## Como funciona
 
 ```
@@ -78,7 +80,8 @@ Tudo que a IA decide e tudo que você ajusta fica em **um único JSON, o `EditPl
 **Vercel (fase 1):** o `vercel.json` publica um único serviço (`app`, Next.js). O processamento pesado roda numa Vercel Sandbox, criada pelo app, com o mesmo commit do deploy. No projeto da Vercel:
 1. Crie um **Blob store** (gera `BLOB_READ_WRITE_TOKEN`; o app passa a usar o Blob sozinho).
 2. Ainda em **Storage**, crie um banco **Postgres (Neon)** e conecte ao projeto. A `DATABASE_URL` é criada sozinha e as tabelas são criadas no primeiro acesso, sem SQL à mão. (O Supabase continua funcionando como alternativa: `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` e as migrations em `supabase/migrations`.)
-3. Coloque as chaves de IA que tiver (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `PEXELS_API_KEY`…).
+3. Defina **`APP_PASSWORD`** (a senha de acesso). Sem ela, o sistema publicado fica bloqueado para todo mundo; com ela, só entra quem souber a senha, e a API inteira exige login (ninguém usa as suas chaves de IA). Opcional: `APP_API_TOKEN`, para o servidor MCP acessar a API.
+4. Coloque as chaves de IA que tiver (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `PEXELS_API_KEY`…).
 
 Na Vercel, `RUNNER` já vira `vercel-sandbox` e o repositório é detectado pelas variáveis de sistema. Com o repositório privado, defina `GIT_TOKEN`.
 

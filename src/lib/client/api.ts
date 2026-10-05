@@ -11,6 +11,8 @@ export async function api<T = unknown>(url: string, init?: RequestInit & {json?:
     body: init?.json !== undefined ? JSON.stringify(init.json) : init?.body,
   });
   const ct = r.headers.get('content-type') ?? '';
+  // sessão expirou: volta para o login
+  if (r.status === 401 && typeof window !== 'undefined') window.location.href = `/login?next=${encodeURIComponent(location.pathname)}`;
   const data = ct.includes('json') ? await r.json() : await r.text();
   if (!r.ok) throw new Error((data as {error?: string})?.error ?? `erro ${r.status}`);
   return data as T;
