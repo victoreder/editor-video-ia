@@ -14,6 +14,35 @@ export interface Runner {
   start(jobId: string): Promise<string | void>;
 }
 
+/** apaga todas as snapshots da Sandbox deste projeto (o editor não usa nenhuma) */
+export async function cleanupSandboxSnapshots(): Promise<{deleted: number; bytes: number; sandboxes: number}> {
+  const {Sandbox, Snapshot} = await import('@vercel/sandbox');
+  let deleted = 0;
+  let bytes = 0;
+  let sandboxes = 0;
+  // máquinas antigas paradas (persistentes) seguram as snapshots: apaga as que não estão rodando
+  for await (const s of await Sandbox.list()) {
+    if (s.status === 'running' || s.status === 'pending' || s.status === 'snapshotting') continue;
+    try {
+      await (await Sandbox.get({name: s.name})).delete({deleteOrphanSnapshots: true});
+      sandboxes++;
+    } catch (e) {
+      console.warn(`sandbox ${s.name} não apagada:`, String(e).slice(0, 120));
+    }
+  }
+  for await (const s of await Snapshot.list()) {
+    if (s.status === 'deleted') continue;
+    try {
+      await (await Snapshot.get({snapshotId: s.id})).delete();
+      deleted++;
+      bytes += s.sizeBytes ?? 0;
+    } catch (e) {
+      console.warn(`snapshot ${s.id} não apagada:`, String(e).slice(0, 120));
+    }
+  }
+  return {deleted, bytes, sandboxes};
+}
+
 /** para um job em execução pela referência devolvida no start (melhor esforço) */
 export async function stopRunner(ref: string | undefined): Promise<void> {
   if (!ref) return;
@@ -27,7 +56,7 @@ export async function stopRunner(ref: string | undefined): Promise<void> {
   } else if (kind === 'sandbox') {
     const {Sandbox} = await import('@vercel/sandbox');
     const sb = await Sandbox.get({name: id});
-    await sb.stop();
+    await sb.delete({deleteOrphanSnapshots: true}).catch(() => sb.stop());
   }
 }
 
@@ -74,11 +103,24 @@ export class VercelSandboxRunner implements Runner {
     if (!repo) throw new Error('defina GIT_REPO_URL para o VercelSandboxRunner');
     // repositório privado: usuário + token do GitHub (permissão de leitura)
     const auth = process.env.GIT_TOKEN ? {username: process.env.GIT_USERNAME ?? 'x-access-token', password: process.env.GIT_TOKEN} : {};
-    const sandbox = await Sandbox.create({
-      source: {url: repo, type: 'git', revision: process.env.GIT_REVISION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? 'main', ...auth},
-      resources: {vcpus: Number(process.env.SANDBOX_VCPUS ?? 4)},
-      timeout: Number(process.env.SANDBOX_TIMEOUT_MS ?? 45 * 60 * 1000),
-      runtime: 'node22',
+    // cada job começa do zero: sem snapshot do disco (persistent: false). As snapshots que
+    // as versões anteriores deixaram são apagadas antes (elas lotam a cota do plano Hobby).
+    await cleanupSandboxSnapshots().catch((e) => console.warn('limpeza de snapshots falhou:', String(e).slice(0, 200)));
+    const create = () =>
+      Sandbox.create({
+        source: {url: repo, type: 'git', revision: process.env.GIT_REVISION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? 'main', ...auth},
+        resources: {vcpus: Number(process.env.SANDBOX_VCPUS ?? 4)},
+        timeout: Number(process.env.SANDBOX_TIMEOUT_MS ?? 45 * 60 * 1000),
+        runtime: 'node22',
+        persistent: false,
+      });
+    const sandbox = await create().catch((e) => {
+      if (/402|snapshot/i.test(String(e))) {
+        throw new Error(
+          `A Vercel Sandbox bloqueou: limite do plano Hobby de "Snapshots Storage" (as snapshots antigas já foram apagadas; a cota volta no início do mês). Para não depender disso, rode o processamento no seu servidor (RUNNER=queue — veja docs/worker-vps.md). Detalhe: ${String(e).slice(0, 300)}`,
+        );
+      }
+      throw e;
     });
     const pass = Object.fromEntries(
       Object.entries(process.env).filter(([k]) =>
@@ -104,7 +146,11 @@ export class VercelSandboxRunner implements Runner {
       'npm ci --no-audit --no-fund',
       `npx tsx worker/cli.ts ${jobId}`,
     ].join(' && ');
-    await sandbox.runCommand({cmd: 'bash', args: ['-lc', setup], env: {...pass, RUNNER: 'inline'}, detached: true});
+    // roda o job e, dando certo ou não, desliga e apaga a própria Sandbox
+    const script = `(${setup}); status=$?; npx tsx worker/sandbox-stop.ts || true; exit $status`;
+    const {getVercelOidcToken} = await import('@vercel/oidc');
+    const oidc = pass.VERCEL_OIDC_TOKEN ?? (await getVercelOidcToken().catch(() => ''));
+    await sandbox.runCommand({cmd: 'bash', args: ['-lc', script], env: {...pass, RUNNER: 'inline', SANDBOX_NAME: sandbox.name, ...(oidc ? {VERCEL_OIDC_TOKEN: oidc} : {})}, detached: true});
     return `sandbox:${sandbox.name}`;
   }
 }
