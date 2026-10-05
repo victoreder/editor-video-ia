@@ -10,7 +10,8 @@ import {config} from '../../config';
 
 export type UploadTarget =
   | {mode: 'local'; url: string; method: 'PUT'}
-  | {mode: 'vercel-blob'; handleUploadUrl: string; pathname: string}
+  // presigned: store no modo sem chave (OIDC) → o navegador usa uploadPresigned
+  | {mode: 'vercel-blob'; handleUploadUrl: string; pathname: string; presigned?: boolean}
   | {mode: 's3'; url: string; method: 'PUT'};
 
 export interface Storage {
@@ -27,7 +28,7 @@ export interface Storage {
 }
 
 export const BLOB_MISSING =
-  'Armazenamento não configurado: na Vercel, abra o projeto → Storage → crie/conecte um Blob store (ele cria BLOB_READ_WRITE_TOKEN) e faça Redeploy. Sem isso o vídeo passaria pela função, que aceita no máximo 4,5 MB (erro 413).';
+  'Armazenamento não configurado: na Vercel, abra o projeto → Storage → crie/conecte um Blob store (ele cria BLOB_STORE_ID ou BLOB_READ_WRITE_TOKEN) e faça Redeploy. Sem isso o vídeo passaria pela função, que aceita no máximo 4,5 MB (erro 413).';
 
 const isUrl = (s: string) => /^https?:\/\//.test(s);
 
@@ -121,7 +122,7 @@ export class VercelBlobStorage implements Storage {
   }
   async uploadTarget(key: string): Promise<UploadTarget> {
     // upload direto do navegador ao Blob (contorna o limite de 4,5 MB das funções)
-    return {mode: 'vercel-blob', handleUploadUrl: '/api/upload/blob', pathname: key};
+    return {mode: 'vercel-blob', handleUploadUrl: '/api/upload/blob', pathname: key, presigned: !process.env.BLOB_READ_WRITE_TOKEN};
   }
 }
 

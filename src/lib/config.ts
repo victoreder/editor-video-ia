@@ -15,7 +15,8 @@ export const config = {
   dataDir: path.resolve(env('DATA_DIR', '.data')),
   publicBaseUrl: env('PUBLIC_BASE_URL', 'http://localhost:3000'),
 
-  storage: env('STORAGE', process.env.BLOB_READ_WRITE_TOKEN ? 'vercel-blob' : 'local') as 'local' | 'vercel-blob' | 's3',
+  // Blob com chave (BLOB_READ_WRITE_TOKEN) ou no modo novo sem chave (BLOB_STORE_ID + OIDC da Vercel)
+  storage: env('STORAGE', process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? 'vercel-blob' : 'local') as 'local' | 'vercel-blob' | 's3',
   // Postgres da Vercel/Neon (DATABASE_URL ou POSTGRES_URL) → postgres; Supabase → supabase; senão JSON local
   db: env('DB', process.env.DATABASE_URL || process.env.POSTGRES_URL ? 'postgres' : process.env.SUPABASE_URL ? 'supabase' : 'local') as 'local' | 'supabase' | 'postgres',
   databaseUrl: env('DATABASE_URL', env('POSTGRES_URL')),

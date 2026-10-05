@@ -66,6 +66,11 @@ export class VercelSandboxRunner implements Runner {
         /^(DB|DATABASE_URL|POSTGRES_URL|STORAGE|SUPABASE_|BLOB_|ANTHROPIC_|OPENAI_|ELEVENLABS_|GROQ_|PEXELS_|REPLICATE_|DIRECTOR|TRANSCRIBER|TRANSCRIBE_|REMOTION_|RENDERER|BROLL_|MUSIC_|S3_)/.test(k),
       ),
     ) as Record<string, string>;
+    // Blob no modo sem chave: a Sandbox não recebe OIDC sozinha, então leva o token desta função
+    if (process.env.BLOB_STORE_ID && !process.env.BLOB_READ_WRITE_TOKEN) {
+      const {getVercelOidcToken} = await import('@vercel/oidc');
+      pass.VERCEL_OIDC_TOKEN = await getVercelOidcToken();
+    }
     // Tudo num único comando destacado: a função da Vercel só dispara e responde na hora;
     // a instalação (minutos) e o job rodam dentro da Sandbox. O progresso vai para o banco.
     const setup = [
