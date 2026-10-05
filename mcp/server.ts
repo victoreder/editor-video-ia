@@ -2,7 +2,7 @@
 // conversando. Fala com o app pela API HTTP (o app precisa estar rodando).
 // Inspirado em autobroll/mcp/server.mjs (MIT).
 //
-//   EDITOR_URL=http://localhost:3000 npx tsx mcp/server.ts
+//   EDITOR_URL=https://seu-app.vercel.app EDITOR_TOKEN=<APP_API_TOKEN> npx tsx mcp/server.ts
 //   claude mcp add editor-video -- npx tsx /caminho/mcp/server.ts
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -15,7 +15,11 @@ const BASE = (process.env.EDITOR_URL ?? 'http://localhost:3000').replace(/\/$/, 
 async function api<T>(path: string, init?: {method?: string; json?: unknown}): Promise<T> {
   const r = await fetch(BASE + path, {
     method: init?.method ?? 'GET',
-    headers: init?.json !== undefined ? {'Content-Type': 'application/json'} : undefined,
+    headers: {
+      ...(init?.json !== undefined ? {'Content-Type': 'application/json'} : {}),
+      // o sistema exige login: use o token de API (APP_API_TOKEN do app)
+      ...(process.env.EDITOR_TOKEN ? {Authorization: `Bearer ${process.env.EDITOR_TOKEN}`} : {}),
+    },
     body: init?.json !== undefined ? JSON.stringify(init.json) : undefined,
   });
   const data = (await r.json().catch(() => ({}))) as T & {error?: string};

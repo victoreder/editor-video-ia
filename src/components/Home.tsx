@@ -28,6 +28,15 @@ export default function Home() {
           <a className="btn-ghost px-4 py-2" href="/styles">
             Meu estilo
           </a>
+          <button
+            className="btn-ghost px-4 py-2"
+            onClick={async () => {
+              await fetch('/api/auth/logout', {method: 'POST'});
+              window.location.href = '/login';
+            }}
+          >
+            Sair
+          </button>
           <button className="btn-primary px-4 py-2" onClick={() => setCreating(true)}>
             + Novo vídeo
           </button>
