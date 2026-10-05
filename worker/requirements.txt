@@ -1,0 +1,4 @@
+# worker Python
+opencv-python-headless>=4.8   # rastreamento de rosto (YuNet), módulo 05
+numpy
+mediapipe==0.10.14            # recorte da pessoa (texto atrás), fase 3 — Python ≤ 3.12

@@ -1,0 +1,57 @@
+# VPS (fase 3): web (Next.js) + worker em fila (RUNNER=queue, concorrência
+# configurável) + MinIO como storage S3. Banco: JSON no volume compartilhado
+# (DB=local) ou Supabase (DB=supabase). Escale workers com:
+#   docker compose up -d --scale worker=2
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    env_file: .env
+    environment:
+      STORAGE: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000/editor-video-ia}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-editor}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-editor-secret}
+      RUNNER: queue
+      DB: ${DB:-local}
+    volumes: ["data:/data"]
+    depends_on: [minio, minio-init]
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["npx", "tsx", "worker/daemon.ts"]
+    env_file: .env
+    environment:
+      STORAGE: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000/editor-video-ia}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-editor}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-editor-secret}
+      RUNNER: queue
+      DB: ${DB:-local}
+      DATA_DIR: /data
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      # o render acessa as mídias pela rede interna
+      RENDER_MEDIA_BASE_URL: http://minio:9000
+    volumes: ["data:/data"]
+    depends_on: [minio, minio-init]
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-editor}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-editor-secret}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["minio:/data"]
+  minio-init:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      sh -c "sleep 3 && mc alias set m http://minio:9000 $${MINIO_ROOT_USER:-editor} $${MINIO_ROOT_PASSWORD:-editor-secret}
+      && mc mb -p m/editor-video-ia && mc anonymous set download m/editor-video-ia"
+volumes:
+  data:
+  minio:

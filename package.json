@@ -1,0 +1,63 @@
+{
+  "name": "editor-video-ia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Editor de vídeos curtos com IA (Reels/TikTok/Shorts): legendas animadas, zoom dinâmico, B-roll, motion graphics e sound design automáticos.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "worker": "tsx worker/cli.ts",
+    "studio": "remotion studio src/remotion/index.ts",
+    "sfx:generate": "tsx scripts/generate-sfx.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "lint": "tsc --noEmit",
+    "remotion:bundle": "remotion bundle src/remotion/index.ts --out-dir remotion-bundle --public-dir public",
+    "e2e": "tsx scripts/e2e.ts",
+    "music:generate": "tsx scripts/generate-music.ts",
+    "worker:daemon": "tsx worker/daemon.ts",
+    "mcp": "tsx mcp/server.ts",
+    "e2e:extras": "tsx scripts/e2e-extras.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@aws-sdk/client-s3": "^3.1146.0",
+    "@aws-sdk/s3-request-presigner": "^3.1146.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@remotion/bundler": "^4.0.532",
+    "@remotion/cli": "^4.0.532",
+    "@remotion/fonts": "^4.0.532",
+    "@remotion/player": "^4.0.532",
+    "@remotion/renderer": "^4.0.532",
+    "@remotion/vercel": "^4.0.532",
+    "@supabase/supabase-js": "^2.117.2",
+    "@vercel/blob": "^2.8.0",
+    "@vercel/sandbox": "^3.5.1",
+    "next": "^16.3.8",
+    "openai": "^7.28.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.532",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@fontsource/anton": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/montserrat": "^5.3.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "playwright-core": "^1.63.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
+  }
+}
