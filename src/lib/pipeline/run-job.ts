@@ -13,7 +13,9 @@ async function ensureFfmpeg() {
   try {
     await run(bin, ['-version']);
   } catch {
-    throw new Error(`ffmpeg não encontrado no servidor de processamento (${bin}). Na Vercel o download do ffmpeg falhou: clique em "Tentar de novo"; se repetir, me avise.`);
+    const {readFile} = await import('node:fs/promises');
+    const install = await readFile('/tmp/ff-install.log', 'utf8').then((s) => s.trim().split('\n').slice(-6).join(' | '), () => '');
+    throw new Error(`ffmpeg não encontrado no servidor de processamento (${bin}).${install ? ` Log da instalação: ${install}` : ''}`);
   }
 }
 
