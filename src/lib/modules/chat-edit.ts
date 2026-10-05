@@ -5,7 +5,7 @@
 // Inspirado no servidor MCP do autobroll (mcp/server.mjs, MIT).
 import {z} from 'zod';
 import type {EditPlan, OverlayKind, SfxKind} from '../plan/schema';
-import {addBroll, addOverlay, addSfx, addZoom, deleteItem, retimeItem, setCaptionText, splitAt, timelineModel, updateCaption, updateClip, updateOverlay, type ItemKind} from '../../editor/ops';
+import {addBroll, addOverlay, addSfx, addZoom, cutRange, deleteItem, retimeItem, setCaptionText, splitAt, timelineModel, updateCaption, updateClip, updateOverlay, type ItemKind} from '../../editor/ops';
 import {STYLE_LIST} from '../styles';
 
 export const OpSchema = z.object({
@@ -14,17 +14,18 @@ export const OpSchema = z.object({
     'add_overlay', 'update_overlay', 'remove', 'retime',
     'add_broll', 'add_zoom', 'add_sfx', 'split', 'clip_speed',
     'set_style', 'set_hook', 'set_outro', 'music_volume', 'sfx_volume', 'progress_bar',
+    'cut_range', 'caption_position', 'set_grade',
   ]),
   id: z.string().describe('id do item (para set_caption_text, accent_word, update_overlay, remove, retime, clip_speed); senão vazio'),
   start: z.number().describe('segundos do vídeo final (quando a operação precisa de tempo); senão 0'),
   end: z.number().describe('fim em segundos do vídeo final; senão 0'),
-  kind: z.string().describe('add_overlay: stat|list|title|quote|emoji|strike|chips|compare|steps|chart|lowerthird|confetti|ui|behind; add_zoom: punch|push|shake; add_sfx: whoosh|pop|impact|…; add_broll: card|split|takeover|pip; caption_preset: bold-pop|karaoke|pill|editorial|clean'),
+  kind: z.string().describe('add_overlay: stat|list|title|quote|strike|chips|compare|steps|chart|lowerthird|confetti|ui|behind; add_zoom: punch|push|shake; add_sfx: whoosh|pop|impact|…; add_broll: takeover (padrão)|split|pip|card; set_grade: none|clean|punchy|film; caption_preset: bold-pop|karaoke|pill|editorial|clean'),
   text: z.string().describe('texto (legenda, título, gancho, CTA, citação, palavra a destacar, busca do B-roll em inglês, id do estilo)'),
   value: z.string().describe('stat: valor (ex.: 87%); senão vazio'),
   label: z.string(),
   items: z.array(z.string()),
   emoji: z.string(),
-  number: z.number().describe('escala, velocidade, volume (0–1) ou multiplicador de tamanho; senão 0'),
+  number: z.number().describe('escala, velocidade, volume (0–1), multiplicador de tamanho ou, em caption_position, a altura do topo da legenda em % (40–72); senão 0'),
 });
 export type Op = z.infer<typeof OpSchema>;
 export const ChatEditSchema = z.object({reply: z.string().describe('resposta curta em português dizendo o que foi feito'), ops: z.array(OpSchema)});
@@ -44,7 +45,12 @@ export const CHAT_SYSTEM = `Você edita vídeos curtos dentro de um editor. O us
 - Para "quando eu falo X", ache a legenda com X no resumo e use o tempo dela.
 - Prefira poucas operações certeiras. Se o pedido não for possível, explique na resposta e devolva ops vazio.
 - Estilos disponíveis: ${STYLE_LIST.map((s) => s.id).join(', ')} (ou ids "custom_…" de estilos próprios).
-- Preencha todos os campos de cada operação; use "" / 0 / [] quando não se aplicam.`;
+- Preencha todos os campos de cada operação; use "" / 0 / [] quando não se aplicam.
+- "Tira/corta a parte em que eu falo X": ache as legendas desse trecho e use cut_range com start = início da primeira e end = fim da última (corta o vídeo e junta).
+- "Sobe/desce a legenda": caption_position com number = altura do topo em % (padrão 64; mais alto = número menor; nunca acima de 72, por causa da interface do Reels).
+- Filtro/cor: set_grade com kind none (original, padrão) | clean | punchy | film.
+- B-roll é sempre uma cena em tela cheia (add_broll com kind "takeover" e text = busca em inglês da cena). Não use emojis.
+- Se alguma parte do pedido não tiver operação correspondente, diga isso claramente na resposta.`;
 
 const kindOfId = (plan: EditPlan, id: string): ItemKind | null => {
   for (const tr of timelineModel(plan).tracks) if (tr.items.some((i) => i.id === id)) return tr.kind;
@@ -149,6 +155,20 @@ export function applyOps(plan: EditPlan, ops: Op[]): {plan: EditPlan; applied: n
         case 'progress_bar':
           p = {...p, progressBar: op.number > 0};
           break;
+        case 'cut_range':
+          p = cutRange(p, t(op.start), op.end);
+          break;
+        case 'caption_position': {
+          // todas as legendas (ou só a do id) na altura pedida, marcadas como manuais
+          const y = Math.max(15, Math.min(72, op.number));
+          p = {...p, captions: {...p.captions, chunks: p.captions.chunks.map((c) => (!op.id || c.id === op.id ? {...c, y, manual: true} : c))}};
+          break;
+        }
+        case 'set_grade': {
+          const look = (['none', 'clean', 'punchy', 'film'].includes(op.kind) ? op.kind : 'none') as EditPlan['grade']['look'];
+          p = {...p, grade: {...p.grade, look, ...(look === 'none' ? {perSource: {}, faceLift: 0} : {})}};
+          break;
+        }
       }
     } catch {
       p = before;

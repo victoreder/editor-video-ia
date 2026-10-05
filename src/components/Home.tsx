@@ -119,7 +119,17 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [files, setFiles] = useState<File[]>([]);
-  const [style, setStyle] = useState('dynamic');
+  // estilo padrão: o último usado; senão o estilo próprio mais recente (da referência); senão Dynamic
+  const [style, setStyle] = useState(() => {
+    let last: string | null = null;
+    try {
+      last = localStorage.getItem('ev:lastStyle');
+    } catch {
+      /* sem storage */
+    }
+    if (last && cfg.styles.some((s) => s.id === last)) return last;
+    return [...cfg.styles].reverse().find((s) => s.custom)?.id ?? 'dynamic';
+  });
   const [isLong, setIsLong] = useState(false);
   const [director, setDirector] = useState<string>(cfg.directors.includes('claude') ? 'claude' : cfg.directors.includes('openai') ? 'openai' : 'heuristic');
   const [platform, setPlatform] = useState('instagram');
@@ -141,6 +151,11 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
     if (noTranscriber && !script.trim()) return setErr('Sem chave de transcrição: cole o roteiro do que você fala no vídeo.');
     try {
       setBusy('Criando projeto');
+      try {
+        localStorage.setItem('ev:lastStyle', style);
+      } catch {
+        /* sem storage */
+      }
       const {project} = await api<{project: Project}>('/api/projects', {
         method: 'POST',
         json: {

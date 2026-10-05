@@ -150,6 +150,17 @@ export function splitAt(plan: EditPlan, t: number): {plan: EditPlan; newId?: str
   return {plan: {...plan, clips: plan.clips.flatMap((c) => (c.id === clip.id ? [a, b] : [c]))}, newId};
 }
 
+/** corta do vídeo o trecho [t0, t1] (tempo do vídeo final) e junta as pontas */
+export function cutRange(plan: EditPlan, t0: number, t1: number): EditPlan {
+  if (t1 - t0 < 0.1) return plan;
+  // corta primeiro no fim: o tempo de t0 não muda
+  let p = splitAt(plan, t1).plan;
+  p = splitAt(p, t0).plan;
+  const drop = new Set(placeClips(p.clips, p.format.fps).filter((x) => x.start >= t0 - 0.05 && x.end <= t1 + 0.05).map((x) => x.clip.id));
+  if (!drop.size) return plan;
+  return {...p, clips: p.clips.filter((c) => !drop.has(c.id)), transitions: p.transitions.filter((t) => !drop.has(t.clipId))};
+}
+
 export function deleteItem(plan: EditPlan, sel: Selection): EditPlan {
   if (!sel) return plan;
   const id = sel.id;

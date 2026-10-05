@@ -5,7 +5,9 @@ import {useEffect} from 'react';
 
 export function ErrorView({error, reset}: {error: Error & {digest?: string}; reset?: () => void}) {
   const detail = [error.message, error.digest ? `digest: ${error.digest}` : '', (error.stack ?? '').split('\n').slice(1, 6).join('\n')].filter(Boolean).join('\n');
-  useEffect(() => console.error(error), [error]);
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
   return (
     <div style={{minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: '#0b0b10', color: '#eee', fontFamily: 'system-ui, sans-serif'}}>
       <div style={{maxWidth: 640, width: '100%', background: '#15151d', border: '1px solid #2a2a36', borderRadius: 16, padding: 24}}>
