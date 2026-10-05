@@ -50,17 +50,32 @@ export class VercelSandboxRunner implements Runner {
     const {Sandbox} = await import('@vercel/sandbox');
     const repo = process.env.GIT_REPO_URL;
     if (!repo) throw new Error('defina GIT_REPO_URL para o VercelSandboxRunner');
+    // repositório privado: usuário + token do GitHub (permissão de leitura)
+    const auth = process.env.GIT_TOKEN ? {username: process.env.GIT_USERNAME ?? 'x-access-token', password: process.env.GIT_TOKEN} : {};
     const sandbox = await Sandbox.create({
-      source: {url: repo, type: 'git', revision: process.env.GIT_REVISION ?? 'main'},
+      source: {url: repo, type: 'git', revision: process.env.GIT_REVISION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? 'main', ...auth},
       resources: {vcpus: Number(process.env.SANDBOX_VCPUS ?? 4)},
       timeout: Number(process.env.SANDBOX_TIMEOUT_MS ?? 45 * 60 * 1000),
       runtime: 'node22',
     });
     const pass = Object.fromEntries(
-      Object.entries(process.env).filter(([k]) => /^(DB|STORAGE|SUPABASE_|BLOB_|ANTHROPIC_|OPENAI_|ELEVENLABS_|GROQ_|PEXELS_|REPLICATE_|DIRECTOR|TRANSCRIBER|REMOTION_)/.test(k)),
+      Object.entries(process.env).filter(([k]) =>
+        /^(DB|STORAGE|SUPABASE_|BLOB_|ANTHROPIC_|OPENAI_|ELEVENLABS_|GROQ_|PEXELS_|REPLICATE_|DIRECTOR|TRANSCRIBER|TRANSCRIBE_|REMOTION_|RENDERER|BROLL_|MUSIC_|S3_)/.test(k),
+      ),
     ) as Record<string, string>;
-    await sandbox.runCommand({cmd: 'bash', args: ['-lc', 'sudo dnf install -y ffmpeg || true; npm ci'], sudo: true});
-    await sandbox.runCommand({cmd: 'npx', args: ['tsx', 'worker/cli.ts', jobId], env: {...pass, RUNNER: 'inline'}, detached: true});
+    // Tudo num único comando destacado: a função da Vercel só dispara e responde na hora;
+    // a instalação (minutos) e o job rodam dentro da Sandbox. O progresso vai para o banco.
+    const setup = [
+      'set -e',
+      // ffmpeg estático (a imagem da Sandbox não traz ffmpeg)
+      'if ! command -v ffmpeg >/dev/null; then curl -sSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar -xJ -C /tmp && sudo cp /tmp/ffmpeg-*-static/ffmpeg /tmp/ffmpeg-*-static/ffprobe /usr/local/bin/; fi',
+      // bibliotecas do Chromium do Remotion e Python do rosto/recorte (opcionais: sem eles o app usa o enquadramento padrão)
+      'sudo dnf install -y -q nss atk at-spi2-atk cups-libs libdrm libxkbcommon libXcomposite libXdamage libXfixes libXrandr mesa-libgbm pango alsa-lib python3-pip mesa-libGL >/dev/null 2>&1 || true',
+      'pip3 install -q -r worker/requirements.txt >/dev/null 2>&1 || true',
+      'npm ci --no-audit --no-fund',
+      `npx tsx worker/cli.ts ${jobId}`,
+    ].join(' && ');
+    await sandbox.runCommand({cmd: 'bash', args: ['-lc', setup], env: {...pass, RUNNER: 'inline'}, detached: true});
   }
 }
 
