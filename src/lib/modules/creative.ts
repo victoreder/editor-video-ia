@@ -218,10 +218,10 @@ export function heuristicCreative(words: TimelineWord[], style: StyleConfig, dur
     const a = s.start + 0.1;
     const b = Math.min(duration - Math.min(2.5, duration * 0.08), a + len);
     if (!free(a, b, 1.5)) continue;
-    const template = style.broll.templates[ti++ % style.broll.templates.length];
-    const kind = template === 'card' && q.emoji ? 'emoji' : q.query ? 'video' : 'emoji';
-    if (kind !== 'emoji' && !q.query) continue;
-    c.broll.push({start: a, end: b, template: kind === 'emoji' ? 'card' : template, kind, query: q.query, emoji: q.emoji, caption: '', reason: 'conceito visual na fala'});
+    // B-roll = cena ilustrativa em tela cheia (sai o apresentador, entra a cena); sem emoji
+    if (!q.query) continue;
+    ti++;
+    c.broll.push({start: a, end: b, template: 'takeover', kind: 'video', query: q.query, emoji: '', caption: '', reason: 'conceito visual na fala'});
     busy.push([a, b]);
   }
 
@@ -309,6 +309,7 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
 
   const overlays: EditPlan['overlays'] = [];
   for (const o of creative.overlays) {
+    if (o.kind === 'emoji') continue; // sem emojis: só cenas, ilustrações e animações
     const r = anchorRange(plan, clampT(o.start), clampT(Math.max(o.end, o.start + 1.2)));
     if (!r) continue;
     const props: EditPlan['overlays'][number]['props'] = {};
@@ -317,13 +318,13 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
     if (o.title) props.title = o.title;
     if (o.items?.length) props.items = o.items.slice(0, 5);
     if (o.text) props.text = o.text;
-    if (o.emoji) props.emoji = o.emoji;
     const layout = o.kind === 'title' || o.kind === 'confetti' || o.kind === 'behind' ? 'full' : o.kind === 'ui' || o.kind === 'lowerthird' ? 'top' : 'card';
     overlays.push({id: uid('ov'), sourceId: r.sourceId, start: r.start, end: r.end, kind: o.kind as OverlayKind, props, layout, reason: o.reason});
   }
 
   const broll: EditPlan['broll'] = [];
   for (const b of creative.broll) {
+    if (b.kind === 'emoji' || !b.query) continue; // B-roll é cena (vídeo) ou ilustração (imagem)
     const r = anchorRange(plan, clampT(b.start), clampT(Math.max(b.end, b.start + 1.5)));
     if (!r) continue;
     broll.push({
@@ -331,8 +332,8 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
       sourceId: r.sourceId,
       start: r.start,
       end: r.end,
-      template: b.kind === 'emoji' ? 'card' : b.template,
-      asset: {kind: b.kind, query: b.query || undefined, emoji: b.emoji || undefined, origin: 'none', alternatives: []},
+      template: 'takeover', // tela cheia: sai o apresentador, entra a cena
+      asset: {kind: b.kind, query: b.query, origin: 'none', alternatives: []},
       caption: b.caption || undefined,
       reason: b.reason,
     });
@@ -342,15 +343,12 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
   let chunks = plan.captions.chunks;
   if (creative.accents.length || creative.emojis.length) {
     const acc = new Set(creative.accents.map((i) => tw[i]).filter(Boolean).map((w) => `${w.sourceId}@${w.srcStart}`));
-    const emo = new Map(creative.emojis.filter((e) => tw[e.word]).map((e) => [`${tw[e.word].sourceId}@${tw[e.word].srcStart}`, e.emoji]));
     chunks = chunks.map((c) => {
-      let emoji: string | undefined;
       const words = c.words.map((w) => {
         const key = `${c.sourceId}@${w.start}`;
-        if (emo.has(key)) emoji = emo.get(key);
         return {...w, accent: acc.has(key)};
       });
-      return {...c, words, emoji: emoji ?? (creative.emojis.length ? undefined : c.emoji)};
+      return {...c, words, emoji: undefined};
     });
   }
 
@@ -365,7 +363,7 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
     hook: creative.hook && style.hook ? {title: creative.hook, until: 2} : undefined,
     outro: style.cta ? {title: style.cta, duration: 1.6} : undefined,
     progressBar: style.progress,
-    grade: {...plan.grade, look: style.grade},
+    grade: {...plan.grade, look: 'none'}, // cor original; filtro só se escolhido à mão
     meta: {...plan.meta, notes: [...creative.notes]},
   };
   next.transitions = placeTransitions(next, creative.transitions, style);

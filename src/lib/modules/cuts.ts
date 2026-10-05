@@ -137,15 +137,23 @@ export function autoCut(sources: Source[], words: Word[], level: Aggressiveness 
   return {clips: r.clips, droppedSec: r.report.removedSec, report: r.report};
 }
 
-/** Garante que nenhum corte cai no meio de uma palavra (move a borda para fora da palavra). */
-export function snapClipsToWords(clips: Clip[], words: Word[]): Clip[] {
+/**
+ * Garante que nenhum corte cai no meio de uma palavra (move a borda para fora da palavra).
+ * Se a borda está num silêncio medido no áudio, fica onde está: ali não há som, mesmo que
+ * o transcritor tenha "esticado" a palavra por cima da pausa.
+ */
+export function snapClipsToWords(clips: Clip[], words: Word[], sources: Pick<Source, 'id' | 'pauses'>[] = []): Clip[] {
+  const pausesBy = new Map(sources.map((s) => [s.id, s.pauses ?? []]));
   return clips.map((c) => {
     const ws = words.filter((w) => w.sourceId === c.sourceId);
+    const quiet = (t: number) => (pausesBy.get(c.sourceId) ?? []).some((p) => t >= p.start - 0.07 && t <= p.end + 0.07);
     let inSec = c.inSec;
     let outSec = c.outSec;
+    const inQuiet = quiet(inSec);
+    const outQuiet = quiet(outSec);
     for (const w of ws) {
-      if (inSec > w.start && inSec < w.end) inSec = Math.max(0, w.start - 0.08);
-      if (outSec > w.start && outSec < w.end) outSec = w.end + 0.12;
+      if (!inQuiet && inSec > w.start && inSec < w.end) inSec = Math.max(0, w.start - 0.08);
+      if (!outQuiet && outSec > w.start && outSec < w.end) outSec = w.end + 0.12;
     }
     return {...c, inSec: +inSec.toFixed(3), outSec: +Math.max(outSec, inSec + 0.2).toFixed(3)};
   });

@@ -16,7 +16,6 @@ const OVERLAYS: {kind: OverlayKind; label: string}[] = [
   {kind: 'list', label: 'Lista'},
   {kind: 'title', label: 'Título'},
   {kind: 'quote', label: 'Citação'},
-  {kind: 'emoji', label: 'Emoji'},
   {kind: 'strike', label: 'Riscado'},
   {kind: 'chips', label: 'Chips'},
   {kind: 'compare', label: 'Comparação'},

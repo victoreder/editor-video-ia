@@ -8,6 +8,7 @@ import {execFileSync} from 'node:child_process';
 import type {Source, Word} from '../src/lib/plan/schema';
 import {analyzeAudio, findPauses} from '../src/lib/media/silence';
 import {buildCuts, detectMistakes, smartCut} from '../src/lib/modules/smartcut';
+import {snapClipsToWords} from '../src/lib/modules/cuts';
 import {restoreRange} from '../src/editor/ops';
 import {emptyPlan} from '../src/lib/pipeline/plan-builder';
 
@@ -106,4 +107,34 @@ test('restaurar um trecho removido devolve o clipe na posição certa', () => {
 test('detectMistakes não mexe em fala limpa', () => {
   const words = W('hoje eu vou te mostrar três formas de crescer no instagram em trinta dias.');
   assert.deepEqual(detectMistakes(words, new Map(), 'medium'), []);
+});
+
+test('silêncio que a transcrição "esconde" (palavra esticada, início do vídeo) também sai', () => {
+  // fala: "olá pessoal" 1,5–2,3 s · silêncio 2,3–4,6 s (o transcritor esticou "pessoal" até 4,6)
+  // · "hoje vamos" 4,6–5,4 · silêncio inicial 0–1,5 s (o transcritor começou "olá" em 0,2)
+  const words: Word[] = [
+    {text: 'olá', start: 0.2, end: 1.9, sourceId: S},
+    {text: 'pessoal', start: 1.9, end: 4.6, sourceId: S},
+    {text: 'hoje', start: 4.6, end: 4.95, sourceId: S},
+    {text: 'vamos', start: 4.95, end: 5.4, sourceId: S},
+  ];
+  const pauses: Source['pauses'] = [
+    {start: 0, end: 1.5, kind: 'silence'},
+    {start: 2.3, end: 4.6, kind: 'silence'},
+  ];
+  const r = smartCut([src(6, pauses)], words, {level: 'medium', removeMistakes: false});
+  const kept = r.clips.reduce((n, c) => n + c.outSec - c.inSec, 0);
+  // sobram ~0,8 s + ~0,8 s de fala (+ respiros curtos), não os 5,4 s
+  assert.ok(kept < 2.4, JSON.stringify(r.clips));
+  for (const p of pauses) for (const c of r.clips) assert.ok(c.outSec <= p.start + 0.1 || c.inSec >= p.end - 0.1, `clipe ${JSON.stringify(c)} cobre o silêncio ${JSON.stringify(p)}`);
+  // o encaixe nas palavras não desfaz o corte
+  const snapped = snapClipsToWords(r.clips, words, [src(6, pauses)]);
+  assert.deepEqual(snapped.map((c) => [c.inSec, c.outSec]), r.clips.map((c) => [c.inSec, c.outSec]));
+});
+
+test('fala baixa dentro de um "silêncio" medido não é cortada', () => {
+  const words = W('isso aqui é importante');
+  const pauses: Source['pauses'] = [{start: words[2].start - 0.1, end: words[2].end + 0.5, kind: 'breath'}];
+  const r = smartCut([src(4, pauses)], words, {level: 'gentle', removeMistakes: false});
+  assert.equal(kept(words, r.clips), 'isso aqui é importante');
 });

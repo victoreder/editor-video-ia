@@ -222,13 +222,20 @@ export function buildCuts(sources: Source[], words: Word[], removals: Removal[],
       clips.push({id: uid('clip'), sourceId: s.id, inSec: +a.toFixed(3), outSec: +b.toFixed(3), speed: 1, volume: 1, muted: false, baseZoom: 1, label: `${label}…`});
     }
   }
-  // junta clipes quase colados da mesma fonte (sem corte visível)
+  // junta clipes quase colados ou SOBREPOSTOS da mesma fonte (sem corte visível e sem
+  // repetir o mesmo trecho duas vezes quando as bordas medidas no áudio coincidem)
   const merged: Clip[] = [];
   for (const c of clips) {
     const last = merged[merged.length - 1];
-    if (last && last.sourceId === c.sourceId && c.inSec - last.outSec >= 0 && c.inSec - last.outSec < 0.06) last.outSec = c.outSec;
+    if (last && last.sourceId === c.sourceId && c.inSec >= last.inSec - 1e-6 && c.inSec - last.outSec < 0.06) last.outSec = Math.max(last.outSec, c.outSec);
     else merged.push({...c});
   }
+  // passe final pelo áudio: silêncio medido que ainda ficou dentro de um clipe sai
+  // (transcrição "esticando" palavra por cima da pausa, silêncio no começo/fim do clipe)
+  const silent = cutRemainingSilence(merged, sources, words, Math.max(cfg.minPause, 0.45));
+  merged.splice(0, merged.length, ...silent.clips);
+  pausesCut += silent.count;
+  pauseSec += silent.sec;
   merged.forEach((c, i) => (c.label = `${i + 1}. ${c.label?.replace(/^\d+\.\s*/, '') ?? ''}`));
 
   const keptSec = merged.reduce((n, c) => n + c.outSec - c.inSec, 0);
@@ -245,6 +252,53 @@ export function buildCuts(sources: Source[], words: Word[], removals: Removal[],
     k = j + 1;
   }
   return {clips: merged, report: {keptSec: +keptSec.toFixed(2), removedSec: +(total - keptSec).toFixed(2), pausesCut, pauseSec: +pauseSec.toFixed(2), removed: removedList}};
+}
+
+/**
+ * Remove de cada clipe os silêncios medidos no áudio com pelo menos `minSec`, a menos
+ * que haja fala ali: uma palavra de tamanho normal (≤ 1 s) com a maior parte dentro da
+ * pausa (fala baixa). Palavras longas "esticadas" pelo transcritor não seguram a pausa.
+ */
+export function cutRemainingSilence(clips: Clip[], sources: Source[], words: Word[], minSec: number): {clips: Clip[]; count: number; sec: number} {
+  const bySrc = new Map(sources.map((s) => [s.id, s]));
+  const out: Clip[] = [];
+  let count = 0;
+  let sec = 0;
+  for (const c of clips) {
+    const pauses = (bySrc.get(c.sourceId)?.pauses ?? []).filter((p) => p.end > c.inSec && p.start < c.outSec);
+    const ws = words.filter((w) => w.sourceId === c.sourceId && w.end > c.inSec && w.start < c.outSec);
+    const holes: [number, number][] = [];
+    for (const p of pauses) {
+      const ps = Math.max(p.start, c.inSec);
+      const pe = Math.min(p.end, c.outSec);
+      if (pe - ps < minSec) continue;
+      const speech = ws.some((w) => {
+        const dur = w.end - w.start;
+        const inside = Math.min(w.end, pe) - Math.max(w.start, ps);
+        return dur <= 1 && inside > 0 && inside >= dur * 0.6;
+      });
+      if (speech) continue;
+      // deixa um respiro curto nas bordas internas (o corte não fica seco)
+      const a = ps > c.inSec + 1e-6 ? ps + 0.06 : ps;
+      const b = pe < c.outSec - 1e-6 ? pe - 0.04 : pe;
+      if (b - a < 0.15) continue;
+      holes.push([a, b]);
+      count++;
+      sec += b - a;
+    }
+    if (!holes.length) {
+      out.push(c);
+      continue;
+    }
+    holes.sort((x, y) => x[0] - y[0]);
+    let from = c.inSec;
+    let part = 0;
+    for (const [a, b] of [...holes, [c.outSec, c.outSec] as [number, number]]) {
+      if (a - from >= 0.25) out.push({...c, id: part++ === 0 ? c.id : uid('clip'), inSec: +from.toFixed(3), outSec: +a.toFixed(3)});
+      from = Math.max(from, b);
+    }
+  }
+  return {clips: out, count, sec};
 }
 
 /** corte completo por regras: respiros + erros/repetições */

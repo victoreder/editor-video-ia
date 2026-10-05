@@ -61,56 +61,27 @@ export function spanFace(probe: (t: number) => ScreenFace | null, t0: number, t1
 /** Calcula `y` (% da altura, topo do bloco) de cada legenda. Mantém `y` já definido à mão. */
 export type Occupied = {t0: number; t1: number; y0: number; y1: number}; // px de tela
 
-export function placeCaptions(plan: EditPlan, opts: {blockHeightPx?: number; keepManual?: boolean; occupied?: Occupied[]} = {}): EditPlan['captions']['chunks'] {
+/**
+ * Faixa fixa da legenda: parte inferior do vídeo, mas acima da interface da plataforma
+ * (no Reels os ~22% de baixo ficam cobertos por botões e texto). O topo do bloco fica
+ * em ~64% da altura — nunca no meio do rosto, nunca colado embaixo.
+ */
+export function captionBand(plan: Pick<EditPlan, 'format' | 'platform'>, blockHeightPx = 190) {
   const {height: H} = plan.format;
   const k = H / 1920;
   const P = PLATFORMS[plan.platform ?? 'instagram'];
-  const safeTop = P.top * k;
-  const safeBottom = H - P.bottom * k;
-  const h = (opts.blockHeightPx ?? 190) * k;
-  const gap = 36 * k;
-  const ideal = 1180 * k;
-  const probe = makeFaceProbe(plan);
-  const timed = new Map(projectedCaptionTimes(plan).map((x) => [x.chunk.id, x]));
-  let prev: {mode: string; y: number} | null = null;
+  const h = blockHeightPx * k;
+  const maxY = H - P.bottom * k - h; // último ponto antes da UI da plataforma
+  const y = Math.min(1230 * k, maxY);
+  return {y, h, top: y, bottom: y + h};
+}
+
+export function placeCaptions(plan: EditPlan, opts: {blockHeightPx?: number; keepManual?: boolean; occupied?: Occupied[]} = {}): EditPlan['captions']['chunks'] {
+  const {height: H} = plan.format;
+  const band = captionBand(plan, opts.blockHeightPx);
   return plan.captions.chunks.map((c) => {
-    const tt = timed.get(c.id);
-    if (!tt || (opts.keepManual !== false && c.y !== undefined && c.manual)) return c;
-    const sp = spanFace(probe, tt.t0, tt.t1);
-    const maxY = safeBottom - h;
-    const opts2: Record<string, number> = {};
-    if (!sp.seen) opts2['no-face'] = Math.min(ideal, maxY);
-    else {
-      if (sp.bottom + gap <= maxY) opts2.below = Math.max(sp.bottom + gap, Math.min(ideal, maxY));
-      if (sp.top - gap - h >= safeTop) opts2.above = sp.top - gap - h;
-      opts2['lower-face'] = maxY;
-    }
-    let mode = prev && opts2[prev.mode] !== undefined && prev.mode !== 'lower-face' ? prev.mode : ['no-face', 'below', 'above', 'lower-face'].find((m) => opts2[m] !== undefined)!;
-    let y = opts2[mode];
-    // desvia de um card na tela ao mesmo tempo: logo abaixo dele, senão a outra zona
-    const clash = (yy: number) => (opts.occupied ?? []).find((o) => tt.t0 < o.t1 && tt.t1 > o.t0 && yy < o.y1 && yy + h > o.y0);
-    const c0 = clash(y);
-    if (c0) {
-      const under = c0.y1 + 24 * k;
-      if (under <= maxY && !clash(under)) y = under;
-      else {
-        const alt = ['above', 'below', 'no-face', 'lower-face'].find((m) => m !== mode && opts2[m] !== undefined && !clash(opts2[m]));
-        if (alt) {
-          mode = alt;
-          y = opts2[alt];
-        } else if (c0.y0 - h - 24 * k >= safeTop) y = c0.y0 - h - 24 * k;
-      }
-    }
-    if (prev && prev.mode === mode && !c0 && Math.abs(prev.y - y) < 70 * k) {
-      const ok = mode === 'below' ? prev.y >= sp.bottom + gap && prev.y <= maxY : mode === 'above' ? prev.y + h <= sp.top - gap && prev.y >= safeTop : true;
-      if (ok) y = prev.y;
-    }
-    if (!Number.isFinite(y)) {
-      mode = 'no-face';
-      y = Math.min(ideal, maxY);
-    }
-    prev = {mode, y};
-    return {...c, y: +((y / H) * 100).toFixed(2)};
+    if (opts.keepManual !== false && c.y !== undefined && c.manual) return c;
+    return {...c, y: +((band.y / H) * 100).toFixed(2)};
   });
 }
 
@@ -124,7 +95,8 @@ export function placeCard(plan: EditPlan, t0: number, t1: number, hPx: number): 
   const h = hPx * k;
   const gap = 36 * k;
   const sp = spanFace(makeFaceProbe(plan), t0, t1);
-  const maxY = safeBottom - h;
+  // o card nunca invade a faixa da legenda (parte inferior)
+  const maxY = Math.min(safeBottom, captionBand(plan).top - gap) - h;
   if (!sp.seen) return {y: (Math.min(990 * k, maxY) / H) * 100, mode: 'no-face'};
   if (sp.bottom + gap <= maxY) return {y: (Math.max(sp.bottom + gap, Math.min(990 * k, maxY)) / H) * 100, mode: 'below'};
   if (sp.top - gap - h >= safeTop) return {y: ((sp.top - gap - h) / H) * 100, mode: 'above'};

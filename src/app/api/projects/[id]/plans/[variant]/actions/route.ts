@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     switch (action) {
       case 'autocut': {
         const {clips, report} = autoCut(plan.sources, plan.words, level ?? 'medium', removeMistakes !== false, minPause);
-        const next = {...plan, cutReport: report, clips: assignClipZoom(snapClipsToWords(clips, plan.words), styleOf(plan))};
+        const next = {...plan, cutReport: report, clips: assignClipZoom(snapClipsToWords(clips, plan.words, plan.sources), styleOf(plan))};
         return {plan: finalize({...next, captions: {...next.captions, chunks: buildCaptions(next)}})};
       }
       case 'captions':

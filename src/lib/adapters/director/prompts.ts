@@ -36,7 +36,7 @@ Você lê a transcrição JÁ CORTADA (tempos em segundos do vídeo final, palav
 
 ESTILO ESCOLHIDO: "${style.name}" — ${style.summary}
 - Zoom: snap entre ${style.camera.punchScale[0]} e ${style.camera.punchScale[1]}, no máximo 1 a cada ${style.camera.punchEvery} s; slow push até ~${(1 + style.camera.push * 3).toFixed(2)}.${style.camera.shake ? ' Shake (tremor de 0,3 s, scale 1.04) só em impacto forte (número chocante, punchline).' : ' Sem shake.'}
-- Gráficos (overlays): cerca de ${style.graphics.perMinute} por minuto. B-roll: cerca de ${style.broll.perMinute} por minuto, templates permitidos: ${style.broll.templates.join(', ')}.
+- Gráficos (overlays): cerca de ${style.graphics.perMinute} por minuto. B-roll: cerca de ${style.broll.perMinute} por minuto, sempre template "takeover" (cena em tela cheia).
 - Algo deve mudar na tela no máximo a cada ${style.maxStatic} s (zoom, gráfico, B-roll ou corte).
 - Transições disponíveis: ${style.transitions.set.join(', ') || 'nenhuma (cortes secos)'}; espaçadas por pelo menos ${style.transitions.minGap} s, só em mudanças de assunto.
 
@@ -45,7 +45,7 @@ ESTILO ESCOLHIDO: "${style.name}" — ${style.summary}
 - Só palavras de SENTIDO: afirmações fortes, números, nomes de marcas/produtos, picos emocionais, a punchline, CTAs.
 - NUNCA destaque artigos, preposições, pronomes, verbos auxiliares, "tipo", "né", "então".
 - No máximo 1 por frase curta, 2 em frases longas; algumas frases não têm nenhum.
-- emojis: ${style.captions.emojiEvery ? `no máximo 1 a cada ~${style.captions.emojiEvery} blocos de legenda, só quando a palavra tem um emoji óbvio` : 'não use (lista vazia)'}.
+- emojis: NÃO use emojis em lugar nenhum (lista emojis vazia, campo emoji sempre string vazia).
 
 2) ZOOM (zoom): beats de câmera.
 - "punch" (snap zoom): começa ~0,05 s antes da palavra forte e dura até o fim da frase (0,8–2 s). Use nos verdadeiros momentos-chave (1 a cada 3–5 frases), nunca mecânico.
@@ -61,26 +61,21 @@ ESTILO ESCOLHIDO: "${style.name}" — ${style.summary}
 | strike | "não é X", um mito, algo que ela descarta | text (o X, curto) |
 | quote  | o que alguém disse a ela | text (a citação curta), label (quem disse) |
 | title  | a frase-tese, a virada, o título de um bloco | text (até 5 palavras), label opcional |
-| emoji  | um sentimento forte | emoji |
 | compare | "antes/depois", "X vs Y", "em vez de" | items: exatamente 2, "Título|valor"; marque o vencedor com * no fim |
 | steps  | um processo em etapas ("primeiro… depois… por fim") | title (opcional), items (2–4 etapas curtas) |
 | chart  | números que se comparam / crescem | title, items "rótulo:valor" (3–5 barras; a última é a destacada) |
 | lowerthird | a pessoa se apresenta ou cita alguém com cargo | text (nome), label (função) |
 | ui     | fala de ferramenta, código, automação, prompt | title (nome do app), items: linhas — "$ comando" é digitado, "✓ feito" fica verde |
-| confetti | conquista, comemoração, "consegui", resultado final | emoji (opcional) |
+| confetti | conquista, comemoração, "consegui", resultado final | (nenhum) |
 | behind | a 1 ou 2 palavras mais fortes do vídeo, ditas com ênfase — aparecem GIGANTES ATRÁS da pessoa | text (1 palavra, até 10 letras); duração 1,2–2 s; só em planos com o rosto inteiro |
 Textos SEMPRE em português, curtíssimos (leitura em 2 s), com as palavras ditas naquele momento. Preencha os campos não usados com string vazia / lista vazia.
 
-4) B-ROLL (broll) — ilustra o que é DITO naquele momento, nunca distrai:
-- template "card": cartão compacto abaixo da legenda (a pessoa continua visível). Para emoji 3D (kind "emoji") ou foto.
-- "split": mídia na metade de cima, pessoa embaixo. Para processos, produtos, telas, exemplos.
-- "takeover": mídia em tela cheia por 2–4 s. Parcimônia: no máximo 1 a cada 4 segmentos.
-- "pip": mídia em tela cheia e a pessoa num quadrado pequeno. Para mostrar algo com calma.
-- kind "video" (preferido: movimento real) ou "image": query = 3–5 palavras EM INGLÊS para banco de vídeos (Pexels), concretas e visuais (ex.: "hands typing laptop office", "money counting cash").
-- kind "emoji": emoji = um emoji que representa o conceito; query vazia.
-- Durações: card 2,5–4 s, split 3–6 s, takeover 2–4 s. Nunca sobrepostos entre si nem com gráficos; ~1,5 s de respiro entre eles.
-- Nos primeiros 10 s, pelo menos 1–2 elementos visuais (gancho visual). Os últimos ~3 s ficam limpos (contato visual no CTA).
-- Variedade: nunca dois seguidos com o mesmo template.
+4) B-ROLL (broll) — CENA DE ILUSTRAÇÃO em tela cheia: o vídeo da pessoa sai e entra uma cena que mostra o que ela está dizendo naquele momento (a fala continua por baixo):
+- template SEMPRE "takeover" (tela cheia). Nunca card, split ou pip.
+- kind "video" (preferido: cena com movimento real) ou "image" (ilustração/foto): query = 3–5 palavras EM INGLÊS, concretas e visuais, que descrevem a CENA (ex.: "hands typing laptop office", "money counting cash", "crowded store customers buying"). Nada de emoji (campo emoji = string vazia).
+- Duração 2–4 s. Nunca sobrepostos entre si nem com gráficos; ~1,5 s de respiro entre eles.
+- Nos primeiros 10 s, pelo menos 1 cena (gancho visual). Os últimos ~3 s ficam limpos (contato visual no CTA).
+- Variedade: cenas diferentes entre si (nunca duas parecidas seguidas).
 
 5) TRANSIÇÕES (transitions): instantes (at) de mudança de assunto, de preferência perto de um corte. Lista vazia se o estilo não usa.
 
