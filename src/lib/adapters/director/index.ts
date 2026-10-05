@@ -16,7 +16,7 @@ export type JsonTask<T extends z.ZodType> = {
   system: string;
   user: string;
   schema: T;
-  /** imagens em base64 ou por URL (miniaturas do Pexels, por exemplo) */
+  /** imagens em base64 ou por URL (miniaturas do banco de vídeos, por exemplo) */
   images?: Array<{mime: 'image/jpeg' | 'image/png'; base64: string; label?: string} | {url: string; label?: string}>;
   effort?: 'low' | 'medium' | 'high' | 'xhigh';
 };

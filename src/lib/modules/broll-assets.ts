@@ -46,6 +46,59 @@ export async function searchPexelsPhotos(query: string, orientation: 'portrait' 
   return (j.photos ?? []).map((p) => ({url: orientation === 'portrait' ? p.src.portrait : p.src.large2x, credit: `Pexels / ${p.photographer}`, thumb: p.src.large, kind: 'image' as const}));
 }
 
+// ---------------------------------------------------------------- Pixabay (alternativa grátis ao Pexels)
+
+type PixabayVideoFile = {url: string; width: number; height: number; thumbnail?: string};
+type PixabayVideo = {id: number; duration: number; user: string; videos: Partial<Record<'large' | 'medium' | 'small' | 'tiny', PixabayVideoFile>>};
+type PixabayPhoto = {id: number; user: string; largeImageURL: string; webformatURL: string; imageWidth: number; imageHeight: number};
+
+const fitsOrientation = (w: number, h: number, o: 'portrait' | 'landscape' | 'square') => (o === 'portrait' ? h > w : o === 'landscape' ? w > h : Math.abs(w - h) / Math.max(w, h) < 0.2);
+
+export async function searchPixabayVideos(query: string, orientation: 'portrait' | 'landscape' | 'square', perPage = 5, minDuration = 3): Promise<Candidate[]> {
+  if (!config.keys.pixabay) return [];
+  // a API de vídeos não filtra orientação: pede mais e filtra aqui (o resto fica de reserva)
+  const r = await fetch(`https://pixabay.com/api/videos/?key=${encodeURIComponent(config.keys.pixabay)}&q=${encodeURIComponent(query)}&per_page=${Math.max(10, perPage * 3)}&safesearch=true`);
+  if (!r.ok) return [];
+  const j = (await r.json()) as {hits?: PixabayVideo[]};
+  const all = (j.hits ?? [])
+    .filter((v) => v.duration >= minDuration)
+    .map((v): {c: Candidate; fits: boolean} | null => {
+      // ~1080 no lado menor: "large" é 1920x1080 (ou 4K), "medium" 1280x720
+      const files = (['large', 'medium', 'small'] as const).map((k) => v.videos[k]).filter((f): f is PixabayVideoFile => !!f?.url && !!f.width);
+      files.sort((a, b) => Math.abs(Math.min(a.width, a.height) - 1080) - Math.abs(Math.min(b.width, b.height) - 1080));
+      const f = files[0];
+      const thumb = v.videos.medium?.thumbnail || v.videos.small?.thumbnail || v.videos.tiny?.thumbnail || f?.thumbnail;
+      return f ? {c: {url: f.url, credit: `Pixabay / ${v.user}`, thumb, kind: 'video' as const}, fits: fitsOrientation(f.width, f.height, orientation)} : null;
+    })
+    .filter((x): x is {c: Candidate; fits: boolean} => !!x);
+  return [...all.filter((x) => x.fits), ...all.filter((x) => !x.fits)].slice(0, perPage).map((x) => x.c);
+}
+
+export async function searchPixabayPhotos(query: string, orientation: 'portrait' | 'landscape' | 'square', perPage = 5): Promise<Candidate[]> {
+  if (!config.keys.pixabay) return [];
+  const o = orientation === 'portrait' ? 'vertical' : orientation === 'landscape' ? 'horizontal' : 'all';
+  const r = await fetch(`https://pixabay.com/api/?key=${encodeURIComponent(config.keys.pixabay)}&q=${encodeURIComponent(query)}&image_type=photo&orientation=${o}&per_page=${Math.max(3, perPage)}&safesearch=true`);
+  if (!r.ok) return [];
+  const j = (await r.json()) as {hits?: PixabayPhoto[]};
+  return (j.hits ?? []).slice(0, perPage).map((p) => ({url: p.largeImageURL, credit: `Pixabay / ${p.user}`, thumb: p.webformatURL, kind: 'image' as const}));
+}
+
+/** vídeos de todos os bancos configurados (Pexels e/ou Pixabay), intercalados */
+export async function searchStockVideos(query: string, orientation: 'portrait' | 'landscape' | 'square', perPage = 5, minDuration = 3): Promise<Candidate[]> {
+  const [a, b] = await Promise.all([searchPexelsVideos(query, orientation, perPage, minDuration).catch(() => []), searchPixabayVideos(query, orientation, perPage, minDuration).catch(() => [])]);
+  return interleave(a, b);
+}
+
+export async function searchStockPhotos(query: string, orientation: 'portrait' | 'landscape' | 'square', perPage = 5): Promise<Candidate[]> {
+  const [a, b] = await Promise.all([searchPexelsPhotos(query, orientation, perPage).catch(() => []), searchPixabayPhotos(query, orientation, perPage).catch(() => [])]);
+  return interleave(a, b);
+}
+
+const interleave = <T,>(a: T[], b: T[]) => Array.from({length: Math.max(a.length, b.length)}, (_, i) => [a[i], b[i]]).flat().filter((x): x is T => x !== undefined);
+
+export const hasStock = () => Boolean(config.keys.pexels || config.keys.pixabay);
+const originOf = (c: Candidate): 'pexels' | 'pixabay' => (c.credit.startsWith('Pixabay') ? 'pixabay' : 'pexels');
+
 /** pontua um asset da biblioteca contra a busca (tags + nome) */
 export function libraryMatch(lib: LibraryAsset[], query: string): LibraryAsset[] {
   const q = query.split(/\s+/).map(normWord).filter((w) => w.length > 2);
@@ -76,22 +129,30 @@ Se NENHUM combina de verdade com o que a pessoa fala (assunto diferente, cena al
 /** a IA (com visão) escolhe, por miniatura, o melhor candidato de cada segmento; -1 = nenhum serve */
 async function pickWithVision(director: Director, items: Array<{seg: number; scene: string; cands: Candidate[]}>, log?: (s: string) => void): Promise<Map<number, number>> {
   const out = new Map<number, number>();
-  const withThumbs = items.filter((x) => x.cands.length && x.cands.every((c) => c.thumb));
+  // só candidatos com miniatura vão para a IA; `idx` guarda a posição original
+  const withThumbs = items
+    .map((x) => ({...x, shown: x.cands.flatMap((c, idx) => (c.thumb ? [{thumb: c.thumb, idx}] : []))}))
+    .filter((x) => x.shown.length);
   // até ~40 imagens por pedido
   for (let i = 0; i < withThumbs.length; i += 8) {
     const batch = withThumbs.slice(i, i + 8);
     const images: Array<{url: string; label: string}> = [];
-    for (const it of batch) it.cands.forEach((c, ci) => images.push({url: c.thumb!, label: `segmento ${it.seg} · candidato ${ci}`}));
+    for (const it of batch) it.shown.forEach((c, ci) => images.push({url: c.thumb, label: `segmento ${it.seg} · candidato ${ci}`}));
     try {
       const r = await director.json({
         name: 'broll_pick',
         system: PICK_SYSTEM,
-        user: `SEGMENTOS:\n${batch.map((it) => `segmento ${it.seg}: ${it.scene} (${it.cands.length} candidatos: 0–${it.cands.length - 1})`).join('\n')}\n\nEscolha um candidato por segmento.`,
+        user: `SEGMENTOS:\n${batch.map((it) => `segmento ${it.seg}: ${it.scene} (${it.shown.length} candidatos: 0–${it.shown.length - 1})`).join('\n')}\n\nEscolha um candidato por segmento.`,
         schema: PickSchema,
         images,
         effort: 'low',
       });
-      for (const p of r.picks) if (batch.some((b) => b.seg === p.segment)) out.set(p.segment, p.candidate);
+      for (const p of r.picks) {
+        const it = batch.find((b) => b.seg === p.segment);
+        if (!it) continue;
+        if (p.candidate < 0) out.set(p.segment, -1);
+        else if (it.shown[p.candidate]) out.set(p.segment, it.shown[p.candidate].idx);
+      }
     } catch (e) {
       log?.(`escolha do B-roll pela IA falhou (${String(e).slice(0, 140)}); usando o primeiro resultado`);
     }
@@ -129,15 +190,17 @@ export async function resolveBrollAssets(
     if (b.asset.kind === 'video') {
       for (const q of queries) {
         if (cands.length >= 5) break;
-        let found = await searchPexelsVideos(q, orient, 6, need);
+        let found = await searchStockVideos(q, orient, 6, need);
         // vertical tem pouco acervo: horizontal também serve (tela cheia corta no centro)
-        if (found.length < 2 && orient === 'portrait') found = [...found, ...(await searchPexelsVideos(q, 'landscape', 6, need))];
+        if (found.length < 2 && orient === 'portrait') found = [...found, ...(await searchStockVideos(q, 'landscape', 6, need))];
         for (const c of found) if (!used.has(c.url) && !cands.some((x) => x.url === c.url) && cands.length < 5) cands.push(c);
       }
+      // acervo pequeno: aceita candidatos de outra cena (a escolha final nunca repete vídeo)
+      if (cands.length < 2) for (const q of queries) for (const c of await searchStockVideos(q, orient, 6, need)) if (!cands.some((x) => x.url === c.url) && cands.length < 3) cands.push(c);
     }
     if (!cands.length) {
       for (const q of queries) {
-        for (const c of await searchPexelsPhotos(q, orient, 5)) if (!used.has(c.url) && cands.length < 4) cands.push(c);
+        for (const c of await searchStockPhotos(q, orient, 5)) if (!used.has(c.url) && cands.length < 4) cands.push(c);
         if (cands.length) break;
       }
     }
@@ -146,16 +209,21 @@ export async function resolveBrollAssets(
   }
 
   // com IA: ela olha as miniaturas e escolhe a cena certa (ou recusa todas)
-  const vision = opts.director && opts.director.id !== 'heuristic' && config.keys.pexels ? opts.director : null;
+  const vision = opts.director && opts.director.id !== 'heuristic' && hasStock() ? opts.director : null;
   const picks = vision ? await pickWithVision(vision, pending.map((p) => ({seg: p.seg, scene: `${p.b.asset.scene ?? ''} [${p.b.asset.query}] ${p.b.reason ?? ''}`.trim(), cands: p.cands})), opts.log) : new Map<number, number>();
 
+  const taken = new Set(plan.broll.map((b) => b.asset.src).filter(Boolean) as string[]);
   for (const p of pending) {
     const {b} = p;
     const pick = picks.get(p.seg);
-    const chosen = pick === undefined ? p.cands[0] : pick >= 0 ? p.cands[pick] : undefined;
+    const free = p.cands.filter((c) => !taken.has(c.url));
+    const wanted = pick === undefined ? free[0] : pick >= 0 ? p.cands[pick] : undefined;
+    // o escolhido já está em outra cena: o próximo livre
+    const chosen = wanted && taken.has(wanted.url) ? free[0] : wanted;
     if (chosen) {
+      taken.add(chosen.url);
       const rest = p.cands.filter((c) => c !== chosen);
-      done.set(b.id, {...b, asset: {...b.asset, kind: chosen.kind, src: chosen.url, origin: 'pexels', credit: chosen.credit, alternatives: [chosen, ...rest].map((c) => c.url)}});
+      done.set(b.id, {...b, asset: {...b.asset, kind: chosen.kind, src: chosen.url, origin: originOf(chosen), credit: chosen.credit, alternatives: [chosen, ...rest].map((c) => c.url)}});
       continue;
     }
     if (pick === -1) opts.log?.(`B-roll "${b.asset.query}": nenhum vídeo do banco combinava com a fala`);
@@ -186,7 +254,7 @@ export async function resolveBrollAssets(
       }
     }
     // nada que combine: sem cena (melhor que um emoji ou um vídeo aleatório)
-    opts.log?.(`B-roll "${b.asset.query}" removido: nada encontrado${config.keys.pexels ? '' : ' (falta PEXELS_API_KEY)'}`);
+    opts.log?.(`B-roll "${b.asset.query}" removido: nada encontrado${hasStock() ? '' : ' (falta PIXABAY_API_KEY ou PEXELS_API_KEY)'}`);
   }
   const broll = plan.broll.flatMap((b) => (done.has(b.id) ? [done.get(b.id)!] : []));
   return {...plan, broll};

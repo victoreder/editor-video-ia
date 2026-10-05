@@ -159,7 +159,7 @@ function Integrations({cfg}: {cfg: AppConfig}) {
     {name: 'Claude (Anthropic)', env: 'ANTHROPIC_API_KEY', on: cfg.directors.includes('claude'), what: 'IA diretora, edição por chat, legenda do post', detail: cfg.models.claude},
     {name: 'OpenAI', env: 'OPENAI_API_KEY', on: cfg.directors.includes('openai'), what: 'IA diretora alternativa, transcrição whisper-1, imagens', detail: cfg.models.openai},
     {name: 'Transcrição', env: 'ELEVENLABS, GROQ ou OPENAI_API_KEY', on: transcribers.length > 0, what: 'Texto palavra a palavra para cortes e legendas', detail: transcribers.join(', ') || undefined},
-    {name: 'Pexels', env: 'PEXELS_API_KEY', on: cfg.pexels, what: 'B-roll de banco de vídeos e fotos'},
+    {name: 'Banco de vídeos', env: 'PIXABAY_API_KEY ou PEXELS_API_KEY', on: cfg.pexels, what: 'B-roll: cenas reais em vídeo e fotos (Pixabay é grátis e dá a chave na hora)', detail: cfg.pexels ? (cfg.pixabay ? 'Pixabay' : 'Pexels') : undefined},
     {name: 'Geração de imagens', env: 'OPENAI_API_KEY ou REPLICATE_API_TOKEN', on: cfg.imageGen, what: 'B-roll gerado por IA quando não há vídeo de banco'},
     {name: 'Música por IA', env: 'ELEVENLABS_API_KEY', on: cfg.musicAI, what: 'Trilha original gerada para cada vídeo'},
     {name: 'Vídeo por IA', env: 'REPLICATE_API_TOKEN + BROLL_AI_VIDEO=1', on: cfg.videoAI, what: 'B-roll em vídeo gerado por IA'},

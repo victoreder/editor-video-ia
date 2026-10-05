@@ -88,3 +88,34 @@ test('B-roll sem banco de vídeos nem IA: a cena é removida, não vira emoji', 
     config.keys.pexels = prev;
   }
 });
+
+test('B-roll só com Pixabay (sem Pexels): vertical primeiro, crédito e origem certos', async () => {
+  const prev = {pexels: config.keys.pexels, pixabay: config.keys.pixabay};
+  config.keys.pexels = '';
+  config.keys.pixabay = 'test';
+  const orig = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = (async (input: string | URL) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.startsWith('https://pixabay.com/api/videos/')) {
+      const v = (id: number, w: number, h: number) => ({id, duration: 12, user: 'ana', videos: {large: {url: `https://cdn.pixabay.com/${id}-l.mp4`, width: w, height: h, thumbnail: `https://cdn.pixabay.com/${id}.jpg`}, medium: {url: `https://cdn.pixabay.com/${id}-m.mp4`, width: w / 1.5, height: h / 1.5, thumbnail: `https://cdn.pixabay.com/${id}.jpg`}}});
+      // o horizontal vem antes na resposta; o vertical deve ser preferido
+      return new Response(JSON.stringify({hits: [v(10, 1920, 1080), v(11, 1080, 1920)]}));
+    }
+    return new Response(JSON.stringify({hits: []}));
+  }) as typeof fetch;
+  try {
+    const out = await resolveBrollAssets(plan(), [], 'p1', {allowAi: false});
+    assert.ok(urls.every((u) => !u.includes('pexels')), 'sem chave do Pexels, não chama o Pexels');
+    assert.equal(out.broll.length, 2);
+    assert.equal(out.broll[0].asset.src, 'https://cdn.pixabay.com/11-l.mp4', 'vertical em ~1080, primeiro');
+    assert.equal(out.broll[0].asset.origin, 'pixabay');
+    assert.equal(out.broll[0].asset.credit, 'Pixabay / ana');
+    // a segunda cena não repete o vídeo da primeira
+    assert.notEqual(out.broll[1].asset.src, out.broll[0].asset.src);
+  } finally {
+    globalThis.fetch = orig;
+    Object.assign(config.keys, prev);
+  }
+});

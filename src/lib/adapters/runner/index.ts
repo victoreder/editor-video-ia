@@ -124,7 +124,7 @@ export class VercelSandboxRunner implements Runner {
     });
     const pass = Object.fromEntries(
       Object.entries(process.env).filter(([k]) =>
-        /^(DB|DATABASE_URL|POSTGRES_URL|STORAGE|SUPABASE_|BLOB_|ANTHROPIC_|OPENAI_|ELEVENLABS_|GROQ_|PEXELS_|REPLICATE_|DIRECTOR|TRANSCRIBER|TRANSCRIBE_|REMOTION_|RENDERER|BROLL_|MUSIC_|S3_)/.test(k),
+        /^(DB|DATABASE_URL|POSTGRES_URL|STORAGE|SUPABASE_|BLOB_|ANTHROPIC_|OPENAI_|ELEVENLABS_|GROQ_|PEXELS_|PIXABAY_|REPLICATE_|DIRECTOR|TRANSCRIBER|TRANSCRIBE_|REMOTION_|RENDERER|BROLL_|MUSIC_|S3_)/.test(k),
       ),
     ) as Record<string, string>;
     // Blob no modo sem chave: a Sandbox não recebe OIDC sozinha, então leva o token desta função

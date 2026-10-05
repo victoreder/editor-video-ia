@@ -80,7 +80,7 @@ Textos SEMPRE em português, curtíssimos (leitura em 2 s), com as palavras dita
 - Leia a fala procurando IMAGENS: todo substantivo concreto, lugar, ação, objeto, pessoa, emoção ou resultado ("cliente pagando", "celular", "loja vazia", "planilha", "academia", "dinheiro", "cansado", "viajando") é candidato a cena. Conceitos abstratos viram a ação concreta que os representa ("crescimento" → "business team celebrating success office"; "procrastinar" → "person scrolling phone on couch").
 - Cubra 30–50% da duração do vídeo com cenas (talking-head puro cansa). Não deixe passar mais de ~6 s sem cena, exceto no fim.
 - template SEMPRE "takeover". kind "video" (preferido: cena com movimento real) ou "image".
-- query = 3–5 palavras EM INGLÊS, concretas e visuais, como alguém digitaria num banco de vídeos (Pexels): sujeito + ação + lugar ("woman typing laptop cafe", "hands counting cash money", "empty retail store", "doctor talking patient clinic"). Nada abstrato ("success", "motivation" sozinhos não funcionam).
+- query = 3–5 palavras EM INGLÊS, concretas e visuais, como alguém digitaria num banco de vídeos (Pexels/Pixabay): sujeito + ação + lugar ("woman typing laptop cafe", "hands counting cash money", "empty retail store", "doctor talking patient clinic"). Nada abstrato ("success", "motivation" sozinhos não funcionam).
 - queries = 2 alternativas em inglês, cada vez mais genéricas (usadas se a primeira não achar vídeo bom).
 - scene = a cena ideal em 1 frase em português (ex.: "mulher digitando no notebook num café") — serve para escolher o melhor vídeo entre os candidatos.
 - Duração 1,5–3 s (cena curta e no ritmo da fala; acompanhe a frase que a menciona). start = início da palavra que evoca a cena.

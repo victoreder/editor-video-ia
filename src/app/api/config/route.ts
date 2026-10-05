@@ -13,7 +13,9 @@ export async function GET() {
     db: config.db,
     runner: config.runner,
     models: {claude: config.anthropicModel, openai: config.openaiModel},
-    pexels: Boolean(config.keys.pexels),
+    // algum banco de vídeos configurado (Pexels ou Pixabay)
+    pexels: Boolean(config.keys.pexels || config.keys.pixabay),
+    pixabay: Boolean(config.keys.pixabay),
     imageGen: Boolean(config.keys.openai || config.keys.replicate),
     musicAI: Boolean(config.keys.elevenlabs),
     videoAI: Boolean(config.keys.replicate) && process.env.BROLL_AI_VIDEO === '1',

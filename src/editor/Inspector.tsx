@@ -555,14 +555,14 @@ function BrollPicker({b}: {b: EditPlan['broll'][number]}) {
       )}
       {results && (
         <div className="mb-3 grid max-h-64 grid-cols-3 gap-1 overflow-y-auto">
-          {results.length === 0 && <p className="col-span-3 text-xs text-muted">Nada encontrado (configure PEXELS_API_KEY ou suba arquivos na biblioteca).</p>}
+          {results.length === 0 && <p className="col-span-3 text-xs text-muted">Nada encontrado (configure PIXABAY_API_KEY ou PEXELS_API_KEY, ou suba arquivos na biblioteca).</p>}
           {results.map((r) => (
             <button
               key={r.src}
               className="aspect-square overflow-hidden rounded border border-line hover:border-brand"
               title={r.credit}
               onClick={() => {
-                apply((p) => updateBroll(p, b.id, {template: b.template === 'card' && r.kind === 'video' ? 'split' : b.template, asset: {...b.asset, kind: r.kind as 'video' | 'image', src: r.src, query: q, origin: r.origin as 'own' | 'pexels', credit: r.credit, alternatives: results.map((x) => x.src)}}));
+                apply((p) => updateBroll(p, b.id, {template: b.template === 'card' && r.kind === 'video' ? 'split' : b.template, asset: {...b.asset, kind: r.kind as 'video' | 'image', src: r.src, query: q, origin: r.origin as 'own' | 'pexels' | 'pixabay', credit: r.credit, alternatives: results.map((x) => x.src)}}));
                 useEditor.getState().setMedia({...useEditor.getState().media, [r.src]: r.url});
               }}
             >

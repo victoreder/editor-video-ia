@@ -40,6 +40,7 @@ export const config = {
     elevenlabs: env('ELEVENLABS_API_KEY'),
     groq: env('GROQ_API_KEY'),
     pexels: env('PEXELS_API_KEY'),
+    pixabay: env('PIXABAY_API_KEY'),
     replicate: env('REPLICATE_API_TOKEN'),
   },
 
