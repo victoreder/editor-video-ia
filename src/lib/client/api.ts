@@ -25,7 +25,9 @@ export type AppConfig = {
   models: {claude: string; openai: string};
   pexels: boolean;
   imageGen: boolean;
-  styles: {id: string; name: string; summary: string; palette: {key: string; accent: string; bg: string; panel: string}; preset: string}[];
+  musicAI: boolean;
+  videoAI: boolean;
+  styles: {id: string; name: string; summary: string; palette: {key: string; accent: string; bg: string; panel: string}; preset: string; custom?: boolean}[];
 };
 
 export type ProjectView = Project & {thumbUrl: string | null};
@@ -62,6 +64,18 @@ export async function uploadProjectFile(projectId: string, file: File, kind: 'so
   const key = await uploadToTarget(target, upload.key, file, onProgress);
   const {project} = await api<{project: Project}>(`/api/projects/${projectId}/uploads`, {method: 'PUT', json: {upload: {...upload, key}, kind}});
   return project;
+}
+
+/** sobe um arquivo fora de projeto (reel de referência, biblioteca) e devolve a chave */
+export async function uploadToPrefix(prefix: 'styles' | 'library', file: File, onProgress: (f: number) => void): Promise<string> {
+  const {key, target} = await api<{key: string; target: UploadTarget}>('/api/upload/target', {method: 'POST', json: {prefix, name: file.name, contentType: file.type || 'video/mp4'}});
+  return uploadToTarget(target, key, file, onProgress);
+}
+
+export async function runProjectJob(projectId: string, type: 'shorts' | 'postpack' | 'thumbnail' | 'matte' | 'music', input: Record<string, unknown>, onUpdate: (j: Job) => void): Promise<Job> {
+  const {job} = await api<{job: Job}>(`/api/projects/${projectId}/jobs`, {method: 'POST', json: {type, input}});
+  onUpdate(job);
+  return waitJob(job.id, onUpdate);
 }
 
 export const getPlan = (projectId: string, variant: string) => api<{plan: EditPlan; media: Record<string, string>}>(`/api/projects/${projectId}/plans/${variant}`);

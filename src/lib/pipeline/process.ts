@@ -11,22 +11,18 @@ import {getTranscriber, type Transcript} from '../adapters/transcriber';
 import {getDirector, type Director} from '../adapters/director';
 import {extractAudio, frameAt, makeProxy, probe} from '../media/ffmpeg';
 import {trackFace} from '../media/face';
+import {measureGrade} from '../media/grade';
+import {generateMattes} from '../media/matte';
+import {resolveProjectStyle} from '../styles/store';
+import {readJsonKey} from '../server/json-store';
+import {applyProjectMusic} from './music';
 import {applyGlossary} from '../modules/captions';
 import {resolveBrollAssets, type LibraryAsset} from '../modules/broll-assets';
 import {basePlan, finalize, planCreative} from './plan-builder';
 
 export type Reporter = (pct: number, label: string) => Promise<void>;
 
-export async function loadLibrary(): Promise<LibraryAsset[]> {
-  const storage = getStorage();
-  try {
-    const tmp = path.join(os.tmpdir(), `lib-${Date.now()}.json`);
-    await storage.download(storage.kind === 'vercel-blob' ? storage.publicUrl('library/index.json') : 'library/index.json', tmp);
-    return JSON.parse(await fs.readFile(tmp, 'utf8')) as LibraryAsset[];
-  } catch {
-    return [];
-  }
-}
+export const loadLibrary = () => readJsonKey<LibraryAsset[]>('library/index.json', []);
 
 async function cachedTranscript(audioPath: string, project: Project, duration: number, log: (s: string) => void): Promise<Transcript> {
   const storage = getStorage();
@@ -54,6 +50,7 @@ export async function prepareSources(project: Project, report: Reporter, workDir
   const sources: Source[] = [];
   const words: Word[] = [];
   const faces: FaceTrack[] = [];
+  const grades: EditPlan['grade']['perSource'] = {};
   const n = project.uploads.length;
   let script = project.script;
   for (const [i, up] of project.uploads.entries()) {
@@ -93,8 +90,14 @@ export async function prepareSources(project: Project, report: Reporter, workDir
     const face = await trackFace(proxy, up.id, workDir);
     if (face) faces.push(face);
     log(`${up.name}: rosto ${face ? `${face.samples.length} amostras` : 'não encontrado'}`);
+    await report(base + step * 0.9, `Medindo a cor de ${up.name}`);
+    const g = await measureGrade(proxy, sources[sources.length - 1], face ?? undefined);
+    if (g) {
+      grades[up.id] = g;
+      if (g.notes.length) log(`${up.name}: cor — ${g.notes.join('; ')}`);
+    }
   }
-  return {sources, words, faces};
+  return {sources, words, faces, grades};
 }
 
 export async function correctWords(words: Word[], glossary: string[], director: Director, log: (s: string) => void): Promise<Word[]> {
@@ -123,13 +126,16 @@ export async function processProject(job: Job, report: Reporter, log: (s: string
   await db.updateProject(project.id, {status: 'processing', error: undefined});
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), `proc-${project.id}-`));
   try {
-    const {sources, words: rawWords, faces} = await prepareSources(project, report, workDir, log);
+    const {sources, words: rawWords, faces, grades} = await prepareSources(project, report, workDir, log);
+    const styleConfig = await resolveProjectStyle(project.style);
     const variants: PlanVariant[] = project.director === 'compare' ? ['claude', 'openai'] : [project.director === 'heuristic' ? 'heuristic' : project.director];
     const primary = getDirector(variants[0]);
     await report(62, 'Corrigindo a transcrição');
     const words = await correctWords(rawWords, project.glossary, primary, log);
     await report(66, 'Escolhendo takes e cortando silêncios');
-    const base = await basePlan({sources, words, faceTracks: faces, style: project.style, platform: project.platform, director: primary, level: project.aggressiveness, script: project.script, musicKey: project.musicKey, log});
+    const base = await basePlan({sources, words, faceTracks: faces, style: project.style, styleConfig, platform: project.platform, director: primary, level: project.aggressiveness, script: project.script, log});
+    base.grade = {...base.grade, perSource: grades};
+    await applyProjectMusic(base, project, workDir, log);
     const library = await loadLibrary();
     const saved: PlanVariant[] = [];
     for (const [k, v] of variants.entries()) {
@@ -139,6 +145,7 @@ export async function processProject(job: Job, report: Reporter, log: (s: string
       let plan: EditPlan = await planCreative({...base, meta: {...base.meta, director: director.id, model: director.model}}, director, log);
       await report(pct + 12 / variants.length, 'Buscando B-roll');
       plan = finalize(await resolveBrollAssets(plan, library, project.id, {allowAi: process.env.BROLL_AI === '1', log}));
+      plan = await generateMattes(plan, project.id, workDir, log);
       // se a IA pedida não tinha chave, o plano foi feito por regras: salva como tal
       const variant: PlanVariant = plan.meta.director === 'heuristic' && v !== 'heuristic' && variants.length === 1 ? 'heuristic' : v;
       await db.savePlan(project.id, variant, plan);
@@ -163,6 +170,8 @@ export async function replanProject(job: Job, report: Reporter, log: (s: string)
   let next = await planCreative({...plan, meta: {...plan.meta, director: director.id, model: director.model}}, director, log);
   await report(70, 'Buscando B-roll');
   next = finalize(await resolveBrollAssets(next, await loadLibrary(), job.projectId, {allowAi: process.env.BROLL_AI === '1', log}));
+  const work = await fs.mkdtemp(path.join(os.tmpdir(), 'replan-'));
+  next = await generateMattes(next, job.projectId, work, log).finally(() => fs.rm(work, {recursive: true, force: true}));
   await db.savePlan(job.projectId, variant, next);
   await report(100, 'Pronto');
   return {variant};

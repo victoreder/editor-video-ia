@@ -10,7 +10,10 @@ import {config} from '../config';
 import {FORMATS, type EditPlan, type FormatId} from '../plan/schema';
 import {getDb, type ExportItem, type Job, type PlanVariant} from '../adapters/db';
 import {getStorage, LocalStorage} from '../adapters/storage';
-import {loudnorm} from '../media/ffmpeg';
+import {loudnorm, qaRendered} from '../media/ffmpeg';
+import {bestThumbnailTime, coverTitle} from '../modules/thumbnail';
+import {toFcpxml} from '../modules/fcpxml';
+import type {ReelProps} from '../../remotion/Reel';
 import {startStaticServer} from '../media/static-server';
 import {toSrt} from '../modules/captions';
 import {runQa} from '../modules/qa';
@@ -53,10 +56,10 @@ export function planForFormat(plan: EditPlan, format: FormatId): EditPlan {
   return finalize({...plan, format: {...plan.format, width: f.width, height: f.height}, captions: {...plan.captions, chunks: plan.captions.chunks.map((c) => ({...c, manual: false}))}});
 }
 
-export async function renderLocal(plan: EditPlan, outFile: string, media: Record<string, string>, onProgress: (f: number) => void, log?: (s: string) => void) {
+export async function renderLocal(plan: EditPlan, outFile: string, media: Record<string, string>, onProgress: (f: number) => void, log?: (s: string) => void, layers?: ReelProps['layers']) {
   const serveUrl = await getBundle(log);
   const {selectComposition, renderMedia} = await import('@remotion/renderer');
-  const inputProps = {plan, media};
+  const inputProps = {plan, media, layers};
   const composition = await selectComposition({serveUrl, id: 'Reel', inputProps, browserExecutable});
   await renderMedia({
     serveUrl,
@@ -81,6 +84,15 @@ export async function renderThumbnail(plan: EditPlan, outFile: string, media: Re
   const inputProps = {plan, media};
   const composition = await selectComposition({serveUrl, id: 'Reel', inputProps, browserExecutable});
   await renderStill({serveUrl, composition, inputProps, browserExecutable, output: outFile, frame: Math.min(frame, composition.durationInFrames - 1), imageFormat: 'jpeg', jpegQuality: 88});
+}
+
+/** capa com título (módulo 13): melhor frame congelado + título grande */
+export async function renderCover(plan: EditPlan, outFile: string, media: Record<string, string>, title?: string) {
+  const serveUrl = await getBundle();
+  const {selectComposition, renderStill} = await import('@remotion/renderer');
+  const inputProps = {plan, media, t: bestThumbnailTime(plan), title: coverTitle(plan, title)};
+  const composition = await selectComposition({serveUrl, id: 'Cover', inputProps, browserExecutable});
+  await renderStill({serveUrl, composition, inputProps, browserExecutable, output: outFile, frame: 0, imageFormat: 'jpeg', jpegQuality: 90});
 }
 
 async function renderOnVercel(plan: EditPlan, media: Record<string, string>, onProgress: (f: number) => void): Promise<string> {
@@ -109,6 +121,7 @@ export async function renderJob(job: Job, report: Reporter, log: (s: string) => 
   const variant = job.input.variant as PlanVariant;
   const formats = ((job.input.formats as FormatId[]) ?? ['vertical']).filter((f) => FORMATS[f]);
   const base = await db.getPlan(job.projectId, variant);
+  const projectRec = await db.getProject(job.projectId);
   if (!base) throw new Error('plano não encontrado');
   const qa = runQa(base);
   for (const i of qa.filter((x) => x.level !== 'info')) log(`QA: ${i.message}`);
@@ -131,6 +144,8 @@ export async function renderJob(job: Job, report: Reporter, log: (s: string) => 
       const id = uid('exp');
       await report(p0, `Renderizando ${format}`);
       let videoKey: string;
+      let qa: Awaited<ReturnType<typeof qaRendered>> | undefined;
+      let cleanKey: string | undefined;
       if (process.env.RENDERER === 'vercel') {
         videoKey = await renderOnVercel(plan, media, (f) => void report(p0 + f * span * 0.9, `Renderizando ${format} ${(f * 100).toFixed(0)}%`));
       } else {
@@ -139,18 +154,34 @@ export async function renderJob(job: Job, report: Reporter, log: (s: string) => 
         await renderLocal(plan, raw, media, (f) => void report(p0 + f * span * 0.8, `Renderizando ${format} ${(f * 100).toFixed(0)}%`), log);
         await report(p0 + span * 0.85, 'Mixagem final (−14 LUFS)');
         await loudnorm(raw, out);
+        qa = await qaRendered(out).catch(() => undefined);
+        if (qa?.notes.length) log(`QA do render: ${qa.notes.join('; ')}`);
         videoKey = await storage.putFile(`projects/${job.projectId}/exports/${id}.mp4`, out, 'video/mp4');
+        if (job.input.clean) {
+          // versão "limpa": só o vídeo cortado, com câmera e cor (para editar em outro programa)
+          await report(p0 + span * 0.88, 'Renderizando a versão limpa');
+          const cleanRaw = path.join(work, `${id}.clean.mp4`);
+          await renderLocal(plan, cleanRaw, media, () => undefined, log, {captions: false, overlays: false, broll: false, hook: false, progress: false, outro: false, sfx: false, music: false});
+          cleanKey = await storage.putFile(`projects/${job.projectId}/exports/${id}.limpo.mp4`, cleanRaw, 'video/mp4');
+        }
       }
       const srtKey = await storage.put(`projects/${job.projectId}/exports/${id}.srt`, toSrt(plan), 'application/x-subrip');
       let thumbKey: string | undefined;
       try {
+        await report(p0 + span * 0.93, 'Capa e thumbnail');
         const thumb = path.join(work, `${id}.jpg`);
-        await renderThumbnail(plan, thumb, media, Math.round(plan.format.fps * 0.6));
+        await renderCover(plan, thumb, media, projectRec?.postpack?.hook?.toUpperCase());
         thumbKey = await storage.putFile(`projects/${job.projectId}/exports/${id}.jpg`, thumb, 'image/jpeg');
       } catch (e) {
-        log(`thumbnail falhou: ${String(e).slice(0, 120)}`);
+        log(`capa falhou: ${String(e).slice(0, 120)}`);
       }
-      exports.push({id, createdAt: new Date().toISOString(), format, videoKey, srtKey, thumbKey, variant});
+      // timeline para DaVinci/Premiere/Final Cut (aponta para os arquivos originais)
+      const fcpxmlKey = await storage.put(
+        `projects/${job.projectId}/exports/${id}.fcpxml`,
+        toFcpxml(plan, {name: projectRec?.name ?? 'Projeto', mediaUrl: (_key, name) => `file://./${encodeURIComponent(name)}`}),
+        'application/xml',
+      );
+      exports.push({id, createdAt: new Date().toISOString(), format, videoKey, srtKey, thumbKey, coverKey: thumbKey, fcpxmlKey, cleanKey, variant, qa: qa ? {lufs: qa.lufs, truePeak: qa.truePeak, ok: qa.ok, notes: qa.notes} : undefined});
     }
     const project = await db.getProject(job.projectId);
     await db.updateProject(job.projectId, {status: 'ready', exports: [...exports, ...(project?.exports ?? [])]});

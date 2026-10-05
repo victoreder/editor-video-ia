@@ -3,7 +3,7 @@
 import React, {useMemo} from 'react';
 import {AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig} from 'remotion';
 import type {EditPlan} from '../lib/plan/schema';
-import {getStyle} from '../lib/styles';
+import {styleOf} from '../lib/styles';
 import {placeClips, projectRange, srcToTimeline, totalDurationFrames} from '../lib/plan/timeline';
 import {projectBeats} from '../lib/plan/camera';
 import {projectSfx} from '../lib/modules/sfx';
@@ -20,7 +20,7 @@ export type ReelProps = {
   media?: Record<string, string>;
   selectedId?: string | null;
   /** esconde camadas (ex.: exportar a versão "limpa") */
-  layers?: {captions?: boolean; broll?: boolean; overlays?: boolean; music?: boolean; sfx?: boolean};
+  layers?: {captions?: boolean; broll?: boolean; overlays?: boolean; music?: boolean; sfx?: boolean; hook?: boolean; progress?: boolean; outro?: boolean};
 };
 
 ensureFonts();
@@ -72,12 +72,12 @@ function layoutAt(broll: TimedBroll[], t: number): SpeakerLayout {
 export const Reel: React.FC<ReelProps> = ({plan, media, selectedId, layers = {}}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const style = getStyle(plan.style);
+  const style = styleOf(plan);
   const timed = useTimed(plan);
   const resolve = useMemo(() => makeResolver(media), [media]);
   const t = frame / fps;
   const layout = layoutAt(timed.broll, t);
-  const show = {captions: true, broll: true, overlays: true, music: true, sfx: true, ...layers};
+  const show = {captions: true, broll: true, overlays: true, music: true, sfx: true, hook: true, progress: true, outro: true, ...layers};
   // gráfico "title" em tela cheia esconde a legenda por baixo
   const hideCaptions: Array<[number, number]> = timed.overlays.filter((o) => o.o.kind === 'title').map((o) => [o.t0, o.t1]);
   timed.broll.filter((b) => b.b.template === 'takeover').forEach((b) => hideCaptions.push([b.t0, b.t1]));
@@ -92,13 +92,13 @@ export const Reel: React.FC<ReelProps> = ({plan, media, selectedId, layers = {}}
         {show.broll && <BrollLayer items={timed.broll} />}
         {show.overlays && <OverlaysLayer items={timed.overlays} />}
         {show.captions && <CaptionsLayer chunks={timed.chunks} hideRanges={hideCaptions} />}
-        {plan.hook && (
+        {show.hook && plan.hook && (
           <Sequence from={0} durationInFrames={Math.max(2, Math.round(plan.hook.until * fps))} layout="none" name="gancho">
             <HookTitle title={plan.hook.title} life={Math.round(plan.hook.until * fps)} />
           </Sequence>
         )}
-        {plan.progressBar && <ProgressBar total={timed.clipsFrames} />}
-        {plan.outro && outroFrames > 0 && (
+        {show.progress && plan.progressBar && <ProgressBar total={timed.clipsFrames} />}
+        {show.outro && plan.outro && outroFrames > 0 && (
           <Sequence from={timed.clipsFrames} durationInFrames={outroFrames} name="end card">
             <EndCard title={plan.outro.title} line={plan.outro.line} life={outroFrames} />
           </Sequence>

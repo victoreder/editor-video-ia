@@ -123,3 +123,33 @@ export async function loudnessCurve(input: string, windowSec = 0.5): Promise<num
   const {stderr} = await run(FFMPEG, ['-i', input, '-af', `astats=metadata=1:reset=${Math.max(1, Math.round(windowSec * 50))},ametadata=print:key=lavfi.astats.Overall.RMS_level`, '-f', 'null', '-']);
   return [...stderr.matchAll(/RMS_level=(-?[\d.inf]+)/g)].map((m) => (m[1].includes('inf') ? -90 : Number(m[1])));
 }
+
+export type RenderQa = {lufs: number | null; truePeak: number | null; black: Array<[number, number]>; freeze: Array<[number, number]>; silence: Array<[number, number]>; ok: boolean; notes: string[]};
+
+/** QA do vídeo renderizado (fase 2): loudness, telas pretas, imagem congelada e silêncio longo */
+export async function qaRendered(file: string): Promise<RenderQa> {
+  const {stderr} = await run(FFMPEG, [
+    '-hide_banner', '-nostats', '-i', file,
+    '-vf', 'blackdetect=d=0.4:pix_th=0.08,freezedetect=n=0.002:d=2.5',
+    '-af', 'ebur128=peak=true,silencedetect=n=-45dB:d=2',
+    '-f', 'null', '-',
+  ]);
+  const pairs = (re: RegExp) => [...stderr.matchAll(re)].map((m) => [Number(m[1]), Number(m[2])] as [number, number]);
+  const black = pairs(/black_start:([\d.]+) black_end:([\d.]+)/g);
+  const fs = [...stderr.matchAll(/freeze_start: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const fe = [...stderr.matchAll(/freeze_end: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const freeze = fs.map((a, i) => [a, fe[i] ?? a] as [number, number]);
+  const ss = [...stderr.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const se = [...stderr.matchAll(/silence_end: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const silence = ss.map((a, i) => [a, se[i] ?? a] as [number, number]);
+  const summary = stderr.slice(stderr.lastIndexOf('Summary:'));
+  const lufs = Number(summary.match(/I:\s+(-?[\d.]+) LUFS/)?.[1] ?? NaN);
+  const tp = Number(summary.match(/Peak:\s+(-?[\d.]+) dBFS/)?.[1] ?? NaN);
+  const notes: string[] = [];
+  if (Number.isFinite(lufs) && Math.abs(lufs + 14) > 2) notes.push(`loudness ${lufs.toFixed(1)} LUFS (meta −14)`);
+  if (Number.isFinite(tp) && tp > -0.5) notes.push(`pico ${tp.toFixed(1)} dBFS (risco de distorção)`);
+  if (black.length) notes.push(`${black.length} trecho(s) de tela preta`);
+  if (freeze.length) notes.push(`${freeze.length} trecho(s) de imagem congelada`);
+  if (silence.length) notes.push(`${silence.length} silêncio(s) acima de 2 s`);
+  return {lufs: Number.isFinite(lufs) ? lufs : null, truePeak: Number.isFinite(tp) ? tp : null, black, freeze, silence, ok: notes.length === 0, notes};
+}

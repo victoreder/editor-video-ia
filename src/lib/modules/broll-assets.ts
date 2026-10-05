@@ -6,6 +6,7 @@ import {config} from '../config';
 import type {BrollSegment, EditPlan} from '../plan/schema';
 import {getStorage} from '../adapters/storage';
 import {getImageGen} from '../adapters/imagegen';
+import {getVideoGen} from '../adapters/videogen';
 import {normWord} from './captions';
 
 export type LibraryAsset = {key: string; kind: 'video' | 'image'; tags: string[]; name: string};
@@ -85,6 +86,19 @@ export async function resolveBrollAssets(plan: EditPlan, library: LibraryAsset[]
     if (found.length) {
       broll.push({...b, asset: {...b.asset, kind, src: found[0].url, origin: 'pexels', credit: found[0].credit, alternatives: found.map((f) => f.url)}});
       continue;
+    }
+    // vídeo por IA (fase 3) para tela cheia/split, quando habilitado
+    const vgen = b.template !== 'card' ? getVideoGen() : null;
+    if (vgen) {
+      try {
+        const aspect = orient === 'portrait' ? '9:16' : orient === 'square' ? '1:1' : '16:9';
+        const vid = await vgen.generate(b.asset.prompt ?? query, aspect, b.end - b.start);
+        const key = await getStorage().put(`projects/${projectId}/broll/${b.id}.mp4`, vid, 'video/mp4');
+        broll.push({...b, asset: {...b.asset, kind: 'video', src: key, origin: 'ai', alternatives: [key]}});
+        continue;
+      } catch (e) {
+        opts.log?.(`vídeo IA falhou para "${query}": ${String(e).slice(0, 120)}`);
+      }
     }
     const gen = opts.allowAi ? getImageGen() : null;
     if (gen) {

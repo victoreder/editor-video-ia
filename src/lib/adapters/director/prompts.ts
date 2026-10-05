@@ -62,6 +62,13 @@ ESTILO ESCOLHIDO: "${style.name}" — ${style.summary}
 | quote  | o que alguém disse a ela | text (a citação curta), label (quem disse) |
 | title  | a frase-tese, a virada, o título de um bloco | text (até 5 palavras), label opcional |
 | emoji  | um sentimento forte | emoji |
+| compare | "antes/depois", "X vs Y", "em vez de" | items: exatamente 2, "Título|valor"; marque o vencedor com * no fim |
+| steps  | um processo em etapas ("primeiro… depois… por fim") | title (opcional), items (2–4 etapas curtas) |
+| chart  | números que se comparam / crescem | title, items "rótulo:valor" (3–5 barras; a última é a destacada) |
+| lowerthird | a pessoa se apresenta ou cita alguém com cargo | text (nome), label (função) |
+| ui     | fala de ferramenta, código, automação, prompt | title (nome do app), items: linhas — "$ comando" é digitado, "✓ feito" fica verde |
+| confetti | conquista, comemoração, "consegui", resultado final | emoji (opcional) |
+| behind | a 1 ou 2 palavras mais fortes do vídeo, ditas com ênfase — aparecem GIGANTES ATRÁS da pessoa | text (1 palavra, até 10 letras); duração 1,2–2 s; só em planos com o rosto inteiro |
 Textos SEMPRE em português, curtíssimos (leitura em 2 s), com as palavras ditas naquele momento. Preencha os campos não usados com string vazia / lista vazia.
 
 4) B-ROLL (broll) — ilustra o que é DITO naquele momento, nunca distrai:

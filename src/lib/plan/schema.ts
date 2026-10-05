@@ -14,11 +14,62 @@ export const FORMATS = {
 } as const;
 export type FormatId = keyof typeof FORMATS;
 
-export const StyleIdSchema = z.enum(['dynamic', 'clean', 'pop', 'minimal']);
-export type StyleId = z.infer<typeof StyleIdSchema>;
+// estilos prontos: dynamic | clean | pop | minimal; estilos próprios têm id "custom_…"
+export const StyleIdSchema = z.string().min(1);
+export type StyleId = string;
 
 export const CaptionPresetSchema = z.enum(['bold-pop', 'karaoke', 'pill', 'editorial', 'clean']);
 export type CaptionPreset = z.infer<typeof CaptionPresetSchema>;
+
+export const TransitionKindSchema = z.enum(['cut', 'whip', 'zoom', 'flash', 'glitch', 'blur']);
+export type TransitionKind = z.infer<typeof TransitionKindSchema>;
+
+export const SfxKindSchema = z.enum(['whoosh', 'swoosh', 'pop', 'click', 'impact', 'riser', 'sparkle', 'glitch', 'ding', 'typing']);
+export type SfxKind = z.infer<typeof SfxKindSchema>;
+
+/** módulo 10: um estilo é um JSON (paleta, fontes, legenda, câmera, transições, densidade, som, música, cor) */
+export const StyleConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  summary: z.string(),
+  palette: z.object({text: z.string(), accent: z.string(), key: z.string(), panel: z.string(), panelText: z.string(), bg: z.string(), muted: z.string()}),
+  fonts: z.object({display: z.string(), body: z.string(), displayWeight: z.number()}),
+  captions: z.object({
+    preset: CaptionPresetSchema,
+    uppercase: z.boolean(),
+    maxWords: z.number(),
+    sizePx: z.number(),
+    emphasisRate: z.number(),
+    emojiEvery: z.number(),
+  }),
+  camera: z.object({
+    levels: z.array(z.number()),
+    push: z.number(),
+    punchScale: z.tuple([z.number(), z.number()]),
+    punchEvery: z.number(),
+    maxZoom: z.number(),
+    shake: z.boolean(),
+  }),
+  transitions: z.object({set: z.array(TransitionKindSchema), minGap: z.number(), duration: z.number()}),
+  graphics: z.object({coverage: z.tuple([z.number(), z.number()]), perMinute: z.number()}),
+  broll: z.object({perMinute: z.number(), templates: z.array(z.enum(['card', 'split', 'takeover', 'pip']))}),
+  maxStatic: z.number(),
+  sfx: z.object({
+    density: z.enum(['low', 'medium', 'high']),
+    transition: z.array(SfxKindSchema),
+    enter: SfxKindSchema,
+    punch: SfxKindSchema.nullable(),
+    hook: SfxKindSchema.nullable(),
+  }),
+  music: z.object({mood: z.enum(['upbeat', 'calm', 'cinematic']), volume: z.number()}),
+  grade: z.enum(['punchy', 'clean', 'film', 'none']),
+  hook: z.boolean(),
+  cta: z.string().nullable(),
+  progress: z.boolean(),
+  /** de onde veio (ex.: "reel de referência X") */
+  origin: z.string().optional(),
+});
+export type StyleConfig = z.infer<typeof StyleConfigSchema>;
 
 export const PlatformSchema = z.enum(['instagram', 'tiktok', 'shorts', 'all']);
 export type Platform = z.infer<typeof PlatformSchema>;
@@ -88,6 +139,7 @@ export const FaceSampleSchema = z.object({
   w: z.number(), // largura/altura do rosto, 0..1
   h: z.number(),
   chinY: z.number(), // queixo, 0..1
+  fx: z.number().optional(), // enquadramento horizontal suavizado ("cinegrafista"), 0..1
 });
 export const FaceTrackSchema = z.object({
   sourceId: z.string(),
@@ -120,7 +172,13 @@ export const CaptionChunkSchema = z.object({
 });
 export type CaptionChunk = z.infer<typeof CaptionChunkSchema>;
 
-export const OverlayKindSchema = z.enum(['stat', 'list', 'title', 'quote', 'emoji', 'strike', 'chips']);
+export const OverlayKindSchema = z.enum([
+  'stat', 'list', 'title', 'quote', 'emoji', 'strike', 'chips',
+  // fase 2: biblioteca completa (kamgasimo/components + talking-head-reel/overlays)
+  'compare', 'steps', 'chart', 'lowerthird', 'confetti', 'ui', 'sticker',
+  // fase 3: texto ATRÁS da pessoa (precisa do recorte, job "matte")
+  'behind',
+]);
 export type OverlayKind = z.infer<typeof OverlayKindSchema>;
 
 export const OverlaySchema = z.object({
@@ -140,6 +198,9 @@ export const OverlaySchema = z.object({
     sub: z.string().optional(),
     author: z.string().optional(),
     emoji: z.string().optional(),
+    src: z.string().optional(), // sticker/meme: imagem do storage ou URL
+    matteSrc: z.string().optional(), // behind: vídeo com alfa só da pessoa (recorte)
+    matteStart: z.number().optional(), // behind: segundo da FONTE em que o recorte começa
   }),
   layout: z.enum(['card', 'full', 'top']).default('card'),
   y: z.number().optional(),
@@ -172,9 +233,6 @@ export const BrollSegmentSchema = z.object({
 });
 export type BrollSegment = z.infer<typeof BrollSegmentSchema>;
 
-export const TransitionKindSchema = z.enum(['cut', 'whip', 'zoom', 'flash', 'glitch', 'blur']);
-export type TransitionKind = z.infer<typeof TransitionKindSchema>;
-
 export const TransitionSchema = z.object({
   id: z.string(),
   clipId: z.string(), // a transição acontece na ENTRADA deste clipe
@@ -182,9 +240,6 @@ export const TransitionSchema = z.object({
   duration: z.number().default(0.24),
 });
 export type Transition = z.infer<typeof TransitionSchema>;
-
-export const SfxKindSchema = z.enum(['whoosh', 'swoosh', 'pop', 'click', 'impact', 'riser', 'sparkle', 'glitch', 'ding', 'typing']);
-export type SfxKind = z.infer<typeof SfxKindSchema>;
 
 export const SfxCueSchema = z.object({
   id: z.string(),
@@ -222,6 +277,7 @@ export const EditPlanSchema = z.object({
   version: z.literal(1),
   format: z.object({width: z.number(), height: z.number(), fps: z.number()}),
   style: StyleIdSchema,
+  styleConfig: StyleConfigSchema.optional(), // cópia do estilo próprio (o plano fica autossuficiente)
   platform: PlatformSchema.default('instagram'),
   sources: z.array(SourceSchema),
   words: z.array(WordSchema),
@@ -242,8 +298,13 @@ export const EditPlanSchema = z.object({
     sfxVolume: z.number().default(0.7),
   }),
   grade: z
-    .object({look: z.enum(['punchy', 'clean', 'film', 'none']), faceLift: z.number().default(0)})
-    .default({look: 'none', faceLift: 0}),
+    .object({
+      look: z.enum(['punchy', 'clean', 'film', 'none']),
+      faceLift: z.number().default(0),
+      // módulo 09: correção medida por fonte, com o rosto primeiro (o rosto nunca fica mais escuro)
+      perSource: z.record(z.string(), z.object({brightness: z.number(), contrast: z.number(), saturate: z.number(), warmth: z.number().default(0), notes: z.array(z.string()).default([])})).default({}),
+    })
+    .default({look: 'none', faceLift: 0, perSource: {}}),
   hook: HookSchema.optional(),
   outro: EndCardSchema.optional(),
   progressBar: z.boolean().default(false),

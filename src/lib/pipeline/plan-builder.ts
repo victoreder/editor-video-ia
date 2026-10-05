@@ -1,8 +1,8 @@
 // Monta e re-monta o EditPlan: cortes → legendas → plano criativo (IA) →
 // regras mecânicas (zoom por corte, transições, safezone, SFX).
-import type {EditPlan, FaceTrack, Platform, Source, StyleId, Word} from '../plan/schema';
+import type {EditPlan, FaceTrack, Platform, Source, StyleConfig, StyleId, Word} from '../plan/schema';
 import {EditPlanSchema, FORMATS, type FormatId} from '../plan/schema';
-import {getStyle} from '../styles';
+import {getStyle, isBuiltinStyle, styleOf} from '../styles';
 import {placeClips, timelineWords} from '../plan/timeline';
 import {autoCut, snapClipsToWords, speechSegments, dropRetakes, mergeClose, segmentsToClips, type Aggressiveness, type Segment} from '../modules/cuts';
 import {buildCaptions} from '../modules/captions';
@@ -11,13 +11,14 @@ import {placeCaptions, placeCards} from '../modules/safezone';
 import {planSfx} from '../modules/sfx';
 import type {Director} from '../adapters/director';
 
-export function emptyPlan(opts: {style: StyleId; platform: Platform; format?: FormatId; director: EditPlan['meta']['director']; model: string}): EditPlan {
-  const style = getStyle(opts.style);
+export function emptyPlan(opts: {style: StyleId; styleConfig?: StyleConfig; platform: Platform; format?: FormatId; director: EditPlan['meta']['director']; model: string}): EditPlan {
+  const style = opts.styleConfig ?? getStyle(opts.style);
   const f = FORMATS[opts.format ?? 'vertical'];
   return EditPlanSchema.parse({
     version: 1,
     format: {width: f.width, height: f.height, fps: 30},
     style: opts.style,
+    styleConfig: opts.styleConfig,
     platform: opts.platform,
     sources: [],
     words: [],
@@ -69,7 +70,7 @@ export async function planCuts(
 
 /** Plano criativo (IA ou regras) + regras mecânicas. Mantém clipes/legendas editados. */
 export async function planCreative(plan: EditPlan, director: Director, log?: (s: string) => void): Promise<EditPlan> {
-  const style = getStyle(plan.style);
+  const style = styleOf(plan);
   const words = timelineWords(plan);
   const duration = placeClips(plan.clips, plan.format.fps).at(-1)?.end ?? 0;
   let creative: Creative = emptyCreative();
@@ -102,6 +103,7 @@ export async function basePlan(input: {
   words: Word[];
   faceTracks: FaceTrack[];
   style: StyleId;
+  styleConfig?: StyleConfig;
   platform: Platform;
   director: Director;
   level: Aggressiveness;
@@ -109,23 +111,25 @@ export async function basePlan(input: {
   musicKey?: string;
   log?: (s: string) => void;
 }): Promise<EditPlan> {
-  const plan = emptyPlan({style: input.style, platform: input.platform, director: input.director.id, model: input.director.model});
+  const plan = emptyPlan({style: input.style, styleConfig: input.styleConfig, platform: input.platform, director: input.director.id, model: input.director.model});
   plan.sources = input.sources;
   plan.words = input.words;
   plan.faceTracks = input.faceTracks;
   plan.clips = await planCuts(input.sources, input.words, {level: input.level, director: input.director, script: input.script, log: input.log});
   plan.captions.chunks = buildCaptions(plan);
-  if (input.musicKey) plan.audio.music = {src: input.musicKey, volume: getStyle(input.style).music.volume, startSec: 0, fadeOutSec: 1.5, duck: true, duckLevel: 0.3};
+  if (input.musicKey) plan.audio.music = {src: input.musicKey, volume: styleOf(plan).music.volume, startSec: 0, fadeOutSec: 1.5, duck: true, duckLevel: 0.3};
   return plan;
 }
 
 /** troca o estilo de um plano existente sem refazer cortes nem a IA */
-export function restyle(plan: EditPlan, styleId: StyleId): EditPlan {
-  const style = getStyle(styleId);
+export function restyle(plan: EditPlan, target: StyleId | StyleConfig): EditPlan {
+  const style = typeof target === 'string' ? (isBuiltinStyle(target) ? getStyle(target) : plan.styleConfig?.id === target ? plan.styleConfig : getStyle(target)) : target;
+  const styleId = style.id;
   const lv = style.camera.levels;
   const next: EditPlan = {
     ...plan,
     style: styleId,
+    styleConfig: isBuiltinStyle(styleId) ? undefined : style,
     clips: plan.clips.map((c, i) => ({...c, baseZoom: lv[i % lv.length]})),
     captions: {
       preset: style.captions.preset,
@@ -136,7 +140,7 @@ export function restyle(plan: EditPlan, styleId: StyleId): EditPlan {
       })),
     },
     progressBar: style.progress,
-    grade: {look: style.grade, faceLift: plan.grade.faceLift},
+    grade: {...plan.grade, look: style.grade},
     outro: style.cta ? {title: style.cta, duration: 1.6} : undefined,
     hook: style.hook ? plan.hook : undefined,
   };

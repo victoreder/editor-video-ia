@@ -14,7 +14,7 @@ export async function PUT(req: Request) {
   const storage = getStorage();
   if (!(storage instanceof LocalStorage)) return fail('upload local desativado (STORAGE != local)', 400);
   const key = new URL(req.url).searchParams.get('key');
-  if (!key || !/^(projects|library)\//.test(key) || key.includes('..')) return fail('chave inválida', 400);
+  if (!key || !/^(projects|library|styles)\//.test(key) || key.includes('..')) return fail('chave inválida', 400);
   if (!req.body) return fail('corpo vazio', 400);
   const file = storage.file(key);
   await fsp.mkdir(path.dirname(file), {recursive: true});

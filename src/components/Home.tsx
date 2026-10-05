@@ -24,9 +24,14 @@ export default function Home() {
           </h1>
           <p className="text-sm text-muted">Reels, TikTok e Shorts: legendas animadas, zoom, B-roll, gráficos e sons — automáticos e ajustáveis.</p>
         </div>
-        <button className="btn-primary px-4 py-2" onClick={() => setCreating(true)}>
-          + Novo vídeo
-        </button>
+        <div className="flex gap-2">
+          <a className="btn-ghost px-4 py-2" href="/styles">
+            Meu estilo
+          </a>
+          <button className="btn-primary px-4 py-2" onClick={() => setCreating(true)}>
+            + Novo vídeo
+          </button>
+        </div>
       </header>
       {cfg && <SetupHints cfg={cfg} />}
       {projects === null ? (
@@ -86,6 +91,7 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
   const [name, setName] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [style, setStyle] = useState('dynamic');
+  const [isLong, setIsLong] = useState(false);
   const [director, setDirector] = useState<string>(cfg.directors.includes('claude') ? 'claude' : cfg.directors.includes('openai') ? 'openai' : 'heuristic');
   const [platform, setPlatform] = useState('instagram');
   const [glossary, setGlossary] = useState('');
@@ -126,6 +132,7 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
         setBusy('Enviando a música');
         await uploadProjectFile(project.id, musicFile, 'music', setProgress);
       }
+      if (isLong) localStorage.setItem(`shorts:${project.id}`, '1');
       setBusy('Iniciando o processamento');
       await api(`/api/projects/${project.id}/process`, {method: 'POST'});
       router.push(`/projects/${project.id}`);
@@ -196,7 +203,10 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
                   <span key={c} className="h-4 w-4 rounded-full border border-white/20" style={{background: c}} />
                 ))}
               </div>
-              <div className="text-sm font-bold">{s.name}</div>
+              <div className="text-sm font-bold">
+                {s.name}
+                {s.custom && <span className="ml-1 rounded bg-brand2/20 px-1 text-[10px] text-brand2">meu</span>}
+              </div>
               <div className="mt-1 line-clamp-3 text-[11px] leading-snug text-muted">{s.summary}</div>
             </button>
           ))}
@@ -213,6 +223,11 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
             );
           })}
         </div>
+        <p className="mt-1 text-xs text-muted">
+          <a className="underline" href="/styles">
+            Criar um estilo copiando um reel de referência →
+          </a>
+        </p>
         <p className="mt-1 text-xs text-muted">Comparar gera dois planos (Claude e OpenAI) e mostra os previews lado a lado — custa só as chamadas de texto.</p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -229,6 +244,10 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
             <select className="input" value={music} onChange={(e) => setMusic(e.target.value)}>
               <option value="builtin:music/upbeat.mp3">Animada (sintetizada)</option>
               <option value="builtin:music/calm.mp3">Calma (sintetizada)</option>
+              <option value="builtin:music/cinematic.mp3">Cinematográfica (sintetizada)</option>
+              <option value="ai:upbeat">Gerada por IA — animada{cfg.musicAI ? '' : ' (sem chave: sintetizada)'}</option>
+              <option value="ai:calm">Gerada por IA — calma{cfg.musicAI ? '' : ' (sem chave: sintetizada)'}</option>
+              <option value="ai:cinematic">Gerada por IA — cinematográfica{cfg.musicAI ? '' : ' (sem chave: sintetizada)'}</option>
               <option value="upload">Enviar meu arquivo…</option>
               <option value="none">Sem música</option>
             </select>
@@ -236,6 +255,9 @@ function NewProject({cfg, onClose}: {cfg: AppConfig; onClose: () => void}) {
           </div>
         </div>
 
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={isLong} onChange={() => setIsLong(!isLong)} /> É um vídeo longo (podcast, live, aula) — quero cortar em Shorts depois
+        </label>
         <div className="mt-5">
           <label className="label">Glossário (nomes, marcas, termos — separados por vírgula)</label>
           <input className="input" value={glossary} onChange={(e) => setGlossary(e.target.value)} placeholder="Claude, Supabase, RX Estratégias" />

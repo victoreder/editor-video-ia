@@ -4,7 +4,7 @@
 import {useState} from 'react';
 import type {EditPlan, OverlayKind, SfxKind, TransitionKind} from '../lib/plan/schema';
 import {STYLE_LIST} from '../lib/styles';
-import {api} from '../lib/client/api';
+import {api, getPlan, runProjectJob, savePlan} from '../lib/client/api';
 import {useEditor} from './store';
 import {addBroll, addOverlay, addSfx, addZoom, deleteItem, setCaptionText, splitAt, updateBroll, updateCaption, updateClip, updateOverlay, updateZoom} from './ops';
 import {uid} from '../lib/util/id';
@@ -19,6 +19,14 @@ const OVERLAYS: {kind: OverlayKind; label: string}[] = [
   {kind: 'emoji', label: 'Emoji'},
   {kind: 'strike', label: 'Riscado'},
   {kind: 'chips', label: 'Chips'},
+  {kind: 'compare', label: 'Comparação'},
+  {kind: 'steps', label: 'Passos'},
+  {kind: 'chart', label: 'Barras'},
+  {kind: 'lowerthird', label: 'Nome/cargo'},
+  {kind: 'ui', label: 'Terminal'},
+  {kind: 'confetti', label: 'Confete'},
+  {kind: 'sticker', label: 'Meme/sticker'},
+  {kind: 'behind', label: 'Texto atrás'},
 ];
 
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
@@ -188,6 +196,33 @@ export function Inspector({onReplan}: {onReplan: () => void}) {
             </Row>
           </>
         )}
+        {(o.kind === 'steps' || o.kind === 'chart' || o.kind === 'compare' || o.kind === 'ui') && (
+          <>
+            <Row label="Título">
+              <input className="input" value={o.props.title ?? ''} onChange={(e) => set({title: e.target.value})} />
+            </Row>
+            <Row label={o.kind === 'chart' ? 'Barras (rótulo:valor, uma por linha)' : o.kind === 'compare' ? 'Dois lados (Título|valor; * marca o vencedor)' : o.kind === 'ui' ? 'Linhas ($ comando é digitado, ✓ fica verde)' : 'Passos (um por linha)'}>
+              <textarea className="input min-h-24 font-mono text-xs" value={(o.props.items ?? []).join('\n')} onChange={(e) => set({items: e.target.value.split('\n')})} />
+            </Row>
+          </>
+        )}
+        {(o.kind === 'lowerthird' || o.kind === 'behind' || o.kind === 'sticker') && (
+          <Row label={o.kind === 'lowerthird' ? 'Nome' : o.kind === 'behind' ? 'Palavra (gigante, atrás de você)' : 'Texto do meme (opcional)'}>
+            <input className="input" value={o.props.text ?? ''} onChange={(e) => set({text: e.target.value})} />
+          </Row>
+        )}
+        {o.kind === 'lowerthird' && (
+          <Row label="Função">
+            <input className="input" value={o.props.label ?? ''} onChange={(e) => set({label: e.target.value})} />
+          </Row>
+        )}
+        {(o.kind === 'sticker' || o.kind === 'confetti') && (
+          <Row label="Emoji">
+            <input className="input text-2xl" value={o.props.emoji ?? ''} onChange={(e) => set({emoji: e.target.value})} />
+          </Row>
+        )}
+        {o.kind === 'sticker' && <StickerPicker src={o.props.src} onPick={(src) => set({src})} />}
+        {o.kind === 'behind' && <MatteButton has={!!o.props.matteSrc} onDone={() => undefined} textChanged={false} />}
         {(o.kind === 'list' || o.kind === 'chips') && (
           <>
             {o.kind === 'list' && (
@@ -321,6 +356,88 @@ export function Inspector({onReplan}: {onReplan: () => void}) {
   }
 
   return <ProjectPanel t={t} onReplan={onReplan} />;
+}
+
+/** memes/stickers: imagens da sua biblioteca (tag "meme" primeiro) ou uma URL */
+type LibItem = {key: string; url: string; name: string; kind: string; tags: string[]};
+function StickerPicker({src, onPick}: {src?: string; onPick: (src: string) => void}) {
+  const [assets, setAssets] = useState<LibItem[] | null>(null);
+  return (
+    <Row label="Imagem (meme/sticker)">
+      <input className="input mb-2" placeholder="URL da imagem ou escolha da biblioteca" value={src ?? ''} onChange={(e) => onPick(e.target.value)} />
+      {!assets ? (
+        <button className="btn-ghost text-xs" onClick={() => api<{assets: LibItem[]}>('/api/library').then((r) => setAssets(r.assets.filter((a) => a.kind === 'image').sort((a, b) => Number(b.tags.includes('meme')) - Number(a.tags.includes('meme')))))}>
+          Escolher da biblioteca
+        </button>
+      ) : (
+        <div className="grid max-h-48 grid-cols-4 gap-1 overflow-y-auto">
+          {assets.length === 0 && <p className="col-span-4 text-xs text-muted">Biblioteca vazia — suba imagens com a tag "meme" em /api/library.</p>}
+          {assets.map((a) => (
+            <button key={a.key} className="aspect-square overflow-hidden rounded border border-line hover:border-brand" onClick={() => {
+              onPick(a.key);
+              useEditor.getState().setMedia({...useEditor.getState().media, [a.key]: a.url});
+            }}>
+              <img src={a.url} alt={a.name} className="h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </Row>
+  );
+}
+
+/** recorta a pessoa para o "texto atrás" (job matte) e recarrega o plano */
+function MatteButton({has}: {has: boolean; onDone: () => void; textChanged: boolean}) {
+  const projectId = useEditor((s) => s.projectId);
+  const variant = useEditor((s) => s.variant);
+  const [label, setLabel] = useState<string | null>(null);
+  const run = async () => {
+    // salva antes: o job lê o plano do banco
+    const cur = useEditor.getState().plan!;
+    await savePlan(projectId, variant, cur);
+    const done = await runProjectJob(projectId, 'matte', {variant}, (j) => setLabel(`${j.label} ${j.progress}%`));
+    if (done.status === 'done') {
+      const r = await getPlan(projectId, variant);
+      useEditor.getState().apply(() => r.plan);
+      useEditor.getState().setMedia(r.media);
+      setLabel('Recorte pronto');
+    } else setLabel(`Erro: ${done.error}`);
+  };
+  return (
+    <div className="mb-3 rounded-lg bg-panel2 p-3 text-xs text-muted">
+      {has ? 'Recorte da pessoa pronto: o texto aparece atrás de você.' : 'Sem recorte ainda: o texto aparece na frente.'}
+      <button className="btn-ghost mt-2 w-full" onClick={run}>
+        {has ? 'Recortar de novo' : 'Recortar a pessoa (texto atrás)'}
+      </button>
+      {label && <p className="mt-1">{label}</p>}
+    </div>
+  );
+}
+
+/** trilha gerada por IA no tamanho exato do vídeo (ElevenLabs; sem chave, sintetizada) */
+function MusicAiButton() {
+  const projectId = useEditor((s) => s.projectId);
+  const variant = useEditor((s) => s.variant);
+  const [prompt, setPrompt] = useState('');
+  const [label, setLabel] = useState<string | null>(null);
+  const run = async () => {
+    await savePlan(projectId, variant, useEditor.getState().plan!);
+    const done = await runProjectJob(projectId, 'music', {variant, spec: `ai:${prompt}`}, (j) => setLabel(`${j.label} ${j.progress}%`));
+    if (done.status === 'done') {
+      const r = await getPlan(projectId, variant);
+      useEditor.getState().apply(() => r.plan);
+      useEditor.getState().setMedia(r.media);
+      setLabel('Trilha gerada');
+    } else setLabel(`Erro: ${done.error}`);
+  };
+  return (
+    <div className="mb-2 flex gap-2">
+      <input className="input" placeholder="Gerar trilha: clima ou descrição (opcional)" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+      <button className="btn-ghost shrink-0" onClick={run} title={label ?? ''}>
+        {label && !label.startsWith('Trilha') && !label.startsWith('Erro') ? '…' : 'Gerar'}
+      </button>
+    </div>
+  );
 }
 
 function swap<T>(arr: T[], i: number, j: number): T[] {
@@ -508,8 +625,10 @@ function ProjectPanel({t, onReplan}: {t: number; onReplan: () => void}) {
             <option value="none">Sem música</option>
             <option value="builtin:music/upbeat.mp3">Animada (sintetizada)</option>
             <option value="builtin:music/calm.mp3">Calma (sintetizada)</option>
-            {plan.audio.music && !plan.audio.music.src.startsWith('builtin:') && <option value={plan.audio.music.src}>Minha música</option>}
+            <option value="builtin:music/cinematic.mp3">Cinematográfica (sintetizada)</option>
+            {plan.audio.music && !plan.audio.music.src.startsWith('builtin:') && <option value={plan.audio.music.src}>{plan.audio.music.src.includes('gerada') ? 'Trilha gerada' : 'Minha música'}</option>}
           </select>
+          <MusicAiButton />
           {plan.audio.music && (
             <>
               <Slider value={plan.audio.music.volume} min={0} max={0.6} step={0.01} onChange={(v) => live((p) => ({...p, audio: {...p.audio, music: {...p.audio.music!, volume: v}}}))} />

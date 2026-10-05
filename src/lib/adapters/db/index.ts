@@ -82,6 +82,22 @@ export class LocalJsonDb implements Db {
     const jobs = (await Promise.all(files.map((f) => readJson<Job>(path.join(dir, f))))).filter((j): j is Job => !!j && j.projectId === projectId);
     return jobs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
+  async claimNextJob() {
+    const dir = path.join(this.root, 'jobs');
+    if (!fs.existsSync(dir)) return null;
+    const files = (await fsp.readdir(dir)).filter((f) => f.endsWith('.json'));
+    const queued = (await Promise.all(files.map((f) => readJson<Job>(path.join(dir, f))))).filter((j): j is Job => !!j && j.status === 'queued').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    for (const j of queued) {
+      try {
+        // trava atômica: só um worker consegue criar o .lock
+        await fsp.writeFile(path.join(dir, `${j.id}.lock`), String(process.pid), {flag: 'wx'});
+        return await this.updateJob(j.id, {status: 'running', label: 'Iniciando'});
+      } catch {
+        /* outro worker pegou */
+      }
+    }
+    return null;
+  }
 }
 
 export class SupabaseDb implements Db {
@@ -132,7 +148,7 @@ export class SupabaseDb implements Db {
     if (error) throw error;
   }
   async createJob(j: Job) {
-    const {error} = await (await this.q()).from('jobs').insert({id: j.id, project_id: j.projectId, data: j, updated_at: j.updatedAt});
+    const {error} = await (await this.q()).from('jobs').insert({id: j.id, project_id: j.projectId || null, status: j.status, data: j, updated_at: j.updatedAt});
     if (error) throw error;
     return j;
   }
@@ -140,7 +156,7 @@ export class SupabaseDb implements Db {
     const cur = await this.getJob(id);
     if (!cur) throw new Error(`job ${id} não existe`);
     const next = {...cur, ...patch, id, updatedAt: now()};
-    const {error} = await (await this.q()).from('jobs').update({data: next, updated_at: next.updatedAt}).eq('id', id);
+    const {error} = await (await this.q()).from('jobs').update({data: next, status: next.status, updated_at: next.updatedAt}).eq('id', id);
     if (error) throw error;
     return next;
   }
@@ -153,6 +169,17 @@ export class SupabaseDb implements Db {
     const {data, error} = await (await this.q()).from('jobs').select('data').eq('project_id', projectId).order('updated_at', {ascending: false});
     if (error) throw error;
     return (data ?? []).map((r) => r.data as Job);
+  }
+  async claimNextJob() {
+    const c = await this.q();
+    const {data} = await c.from('jobs').select('id, data').eq('status', 'queued').order('updated_at', {ascending: true}).limit(5);
+    for (const row of data ?? []) {
+      const job = {...(row.data as Job), status: 'running' as const, label: 'Iniciando', updatedAt: now()};
+      // só atualiza se ainda estiver na fila (dois workers não pegam o mesmo)
+      const {data: upd} = await c.from('jobs').update({data: job, status: 'running', updated_at: job.updatedAt}).eq('id', row.id).eq('status', 'queued').select('id');
+      if (upd?.length) return job;
+    }
+    return null;
   }
 }
 

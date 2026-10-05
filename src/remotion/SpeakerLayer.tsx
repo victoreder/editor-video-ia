@@ -3,6 +3,8 @@
 // o grade de cor e o layout (cheio / split / pip) pedido pelo B-roll ativo.
 import React, {useMemo} from 'react';
 import {AbsoluteFill, OffthreadVideo, Sequence, Video, getRemotionEnvironment, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import type {Overlay} from '../lib/plan/schema';
+import {BehindText} from './overlays/Extra';
 import {cameraAt, type ProjectedBeat} from '../lib/plan/camera';
 import {coverFit, srcToScreen} from '../lib/plan/frame';
 import {faceAt} from '../lib/plan/camera';
@@ -30,9 +32,9 @@ const ClipMedia: React.FC<{p: PlacedClip; beats: ProjectedBeat[]; transition?: T
   const t = p.start + frame / fps;
   const source = plan.sources.find((s) => s.id === clip.sourceId);
   const cam = cameraAt(plan, p, srcSec, t, beats);
-  // reframe barato: o object-position segue o rosto (16:9 → 9:16)
+  // reframe 16:9 → 9:16: segue o enquadramento suavizado ("cinegrafista", fx) ou o rosto
   const face = faceAt(plan.faceTracks, clip.sourceId, srcSec);
-  const fit = coverFit(source?.width ?? W, source?.height ?? H, W, H, face?.cx ?? 0.5, 0.4);
+  const fit = coverFit(source?.width ?? W, source?.height ?? H, W, H, face?.fx ?? face?.cx ?? 0.5, 0.4);
   const origin = srcToScreen(fit, W, H, cam.originX, cam.originY);
 
   // transição de entrada
@@ -63,7 +65,10 @@ const ClipMedia: React.FC<{p: PlacedClip; beats: ProjectedBeat[]; transition?: T
   const trimBefore = Math.round(clip.inSec * fps);
   const grade = GRADE[plan.grade?.look ?? 'none'];
   const lift = plan.grade?.faceLift ? ` brightness(${1 + plan.grade.faceLift * 0.15})` : '';
-  const filter = [grade + lift, blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : '', hue ? `hue-rotate(${hue}deg)` : ''].join(' ').trim();
+  // correção medida desta fonte (módulo 09): o rosto nunca sai mais escuro
+  const ps = plan.grade?.perSource?.[clip.sourceId];
+  const measured = ps ? ` brightness(${ps.brightness.toFixed(3)}) contrast(${ps.contrast.toFixed(3)}) saturate(${ps.saturate.toFixed(3)})${ps.warmth ? ` sepia(${Math.max(0, ps.warmth).toFixed(3)})` : ''}` : '';
+  const filter = [measured + ' ' + grade + lift, blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : '', hue ? `hue-rotate(${hue}deg)` : ''].join(' ').trim();
 
   return (
     <AbsoluteFill style={{overflow: 'hidden', backgroundColor: '#000'}}>
@@ -89,10 +94,60 @@ const ClipMedia: React.FC<{p: PlacedClip; beats: ProjectedBeat[]; transition?: T
         ) : (
           <AbsoluteFill style={{background: '#222', color: '#888', alignItems: 'center', justifyContent: 'center', fontSize: 40}}>sem mídia</AbsoluteFill>
         )}
+        <BehindInClip p={p} fit={fit} />
       </AbsoluteFill>
       {flash > 0.01 && <AbsoluteFill style={{background: '#fff', opacity: flash}} />}
     </AbsoluteFill>
   );
+};
+
+/**
+ * Texto atrás da pessoa (fase 3): o texto é desenhado sobre o vídeo e, por cima dele,
+ * o recorte da pessoa (vídeo com alfa gerado pelo job "matte"), dentro do mesmo
+ * contêiner da câmera — o recorte acompanha exatamente o zoom do apresentador.
+ */
+const BehindInClip: React.FC<{p: PlacedClip; fit: ReturnType<typeof coverFit>}> = ({p, fit}) => {
+  const {plan, resolve} = useReel();
+  const {fps} = useVideoConfig();
+  const clip = p.clip;
+  const speed = clip.speed || 1;
+  const items = plan.overlays.filter((o): o is Overlay => o.kind === 'behind' && !!o.props.matteSrc && o.sourceId === clip.sourceId && o.start < clip.outSec && o.end > clip.inSec);
+  if (!items.length) return null;
+  const Comp = getRemotionEnvironment().isRendering ? OffthreadVideo : Video;
+  return (
+    <>
+      {items.map((o) => {
+        const a = Math.max(o.start, clip.inSec);
+        const b = Math.min(o.end, clip.outSec);
+        const from = Math.round(((a - clip.inSec) / speed) * fps);
+        const dur = Math.max(1, Math.round(((b - a) / speed) * fps));
+        const matteOffset = Math.max(0, Math.round((a - (o.props.matteStart ?? o.start)) * fps));
+        const src = resolve(o.props.matteSrc);
+        return (
+          <Sequence key={o.id} from={from} durationInFrames={dur} layout="none" name={`atrás: ${o.props.text ?? ''}`}>
+            <BehindFrame o={o} life={dur} />
+            {src && (
+              <AbsoluteFill>
+                <Comp
+                  src={src}
+                  muted
+                  transparent
+                  playbackRate={speed}
+                  trimBefore={matteOffset}
+                  style={{width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${(fit.posX * 100).toFixed(1)}% ${(fit.posY * 100).toFixed(1)}%`}}
+                />
+              </AbsoluteFill>
+            )}
+          </Sequence>
+        );
+      })}
+    </>
+  );
+};
+
+const BehindFrame: React.FC<{o: Overlay; life: number}> = ({o, life}) => {
+  const frame = useCurrentFrame();
+  return <BehindText o={o} frame={frame} life={life} />;
 };
 
 export const SpeakerLayer: React.FC<{placed: PlacedClip[]; beats: ProjectedBeat[]; layout: SpeakerLayout}> = ({placed, beats, layout}) => {

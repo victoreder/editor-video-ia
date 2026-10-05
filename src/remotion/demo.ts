@@ -16,7 +16,7 @@ export const emptyDemoPlan = (): EditPlan => ({
   broll: [],
   transitions: [],
   audio: {sfx: [], sfxVolume: 0.7},
-  grade: {look: 'none', faceLift: 0},
+  grade: {look: 'none', faceLift: 0, perSource: {}},
   progressBar: false,
   meta: {director: 'heuristic', model: 'demo', createdAt: new Date(0).toISOString(), notes: []},
 });

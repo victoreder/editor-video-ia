@@ -6,9 +6,10 @@ import {autoCut, snapClipsToWords} from '@/lib/modules/cuts';
 import {buildCaptions, toSrt} from '@/lib/modules/captions';
 import {runQa} from '@/lib/modules/qa';
 import {assignClipZoom} from '@/lib/modules/creative';
-import {getStyle} from '@/lib/styles';
+import {styleOf} from '@/lib/styles';
 import {finalize, restyle} from '@/lib/pipeline/plan-builder';
 import {route} from '@/lib/server/http';
+import {listCustomStyles} from '@/lib/styles/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,15 +26,18 @@ export async function POST(req: Request) {
     switch (action) {
       case 'autocut': {
         const {clips} = autoCut(plan.sources, plan.words, level ?? 'medium', true);
-        const next = {...plan, clips: assignClipZoom(snapClipsToWords(clips, plan.words), getStyle(plan.style))};
+        const next = {...plan, clips: assignClipZoom(snapClipsToWords(clips, plan.words), styleOf(plan))};
         return {plan: finalize({...next, captions: {...next.captions, chunks: buildCaptions(next)}})};
       }
       case 'captions':
         return {plan: finalize({...plan, captions: {...plan.captions, chunks: buildCaptions(plan)}})};
       case 'finalize':
         return {plan: finalize(plan)};
-      case 'restyle':
-        return {plan: restyle(plan, style ?? plan.style)};
+      case 'restyle': {
+        const id = style ?? plan.style;
+        const custom = id.startsWith('custom_') ? (await listCustomStyles()).find((s) => s.id === id) : undefined;
+        return {plan: restyle(plan, custom ?? id)};
+      }
       case 'qa':
         return {issues: runQa(plan)};
       case 'srt':

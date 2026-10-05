@@ -10,12 +10,24 @@ import {CORRECTION_SYSTEM, TAKES_SYSTEM, creativeSystem, transcriptForPrompt} fr
 
 export type TakeSegment = {i: number; sourceName: string; start: number; end: number; text: string};
 
+/** uma tarefa genérica de JSON estruturado (fase 2/3: estilo de referência, shorts, post, chat) */
+export type JsonTask<T extends z.ZodType> = {
+  name: string;
+  system: string;
+  user: string;
+  schema: T;
+  images?: {mime: 'image/jpeg' | 'image/png'; base64: string; label?: string}[];
+  effort?: 'low' | 'medium' | 'high';
+};
+
 export interface Director {
   readonly id: 'claude' | 'openai' | 'heuristic';
   readonly model: string;
   correct(words: {text: string}[], glossary: string[]): Promise<{i: number; text: string}[]>;
   selectTakes(segments: TakeSegment[], script?: string): Promise<{keep: number[]; notes: string}>;
   creative(input: {words: TimelineWord[]; style: StyleConfig; duration: number; platform: string}): Promise<Creative>;
+  /** JSON estruturado arbitrário (lança erro no diretor sem IA — quem chama tem fallback) */
+  json<T extends z.ZodType>(task: JsonTask<T>): Promise<z.infer<T>>;
 }
 
 const CorrectionSchema = z.object({fixes: z.array(z.object({i: z.number(), text: z.string()}))});
@@ -35,15 +47,24 @@ const creativeUser = (words: TimelineWord[], duration: number) =>
 export class ClaudeDirector implements Director {
   readonly id = 'claude' as const;
   constructor(readonly model = config.anthropicModel) {}
-  private async ask<T extends z.ZodType>(system: string, user: string, schema: T, effort: 'low' | 'medium' | 'high'): Promise<z.infer<T>> {
+  private ask<T extends z.ZodType>(system: string, user: string, schema: T, effort: 'low' | 'medium' | 'high'): Promise<z.infer<T>> {
+    return this.json({name: 'task', system, user, schema, effort});
+  }
+  async json<T extends z.ZodType>({system, user, schema, effort = 'medium', images = []}: JsonTask<T>): Promise<z.infer<T>> {
     const {default: Anthropic} = await import('@anthropic-ai/sdk');
     const {zodOutputFormat} = await import('@anthropic-ai/sdk/helpers/zod');
     const client = new Anthropic();
+    const content: Array<{type: 'text'; text: string} | {type: 'image'; source: {type: 'base64'; media_type: 'image/jpeg' | 'image/png'; data: string}}> = [];
+    for (const im of images) {
+      if (im.label) content.push({type: 'text', text: im.label});
+      content.push({type: 'image', source: {type: 'base64', media_type: im.mime, data: im.base64}});
+    }
+    content.push({type: 'text', text: user});
     const res = await client.messages.parse({
       model: this.model,
       max_tokens: 16000,
       system,
-      messages: [{role: 'user', content: user}],
+      messages: [{role: 'user', content}],
       output_config: {effort, format: zodOutputFormat(schema)},
     });
     if (res.stop_reason === 'refusal') throw new Error('Claude recusou a solicitação');
@@ -68,14 +89,23 @@ export class ClaudeDirector implements Director {
 export class OpenAIDirector implements Director {
   readonly id = 'openai' as const;
   constructor(readonly model = config.openaiModel) {}
-  private async ask<T extends z.ZodType>(system: string, user: string, schema: T, name: string): Promise<z.infer<T>> {
+  private ask<T extends z.ZodType>(system: string, user: string, schema: T, name: string): Promise<z.infer<T>> {
+    return this.json({name, system, user, schema});
+  }
+  async json<T extends z.ZodType>({name, system, user, schema, images = []}: JsonTask<T>): Promise<z.infer<T>> {
     const {default: OpenAI} = await import('openai');
     const client = new OpenAI({apiKey: config.keys.openai});
+    const parts: Array<{type: 'text'; text: string} | {type: 'image_url'; image_url: {url: string}}> = [];
+    for (const im of images) {
+      if (im.label) parts.push({type: 'text', text: im.label});
+      parts.push({type: 'image_url', image_url: {url: `data:${im.mime};base64,${im.base64}`}});
+    }
+    parts.push({type: 'text', text: user});
     const res = await client.chat.completions.create({
       model: this.model,
       messages: [
         {role: 'system', content: system},
-        {role: 'user', content: user},
+        {role: 'user', content: parts},
       ],
       response_format: {type: 'json_schema', json_schema: {name, schema: z.toJSONSchema(schema) as Record<string, unknown>, strict: false}},
     });
@@ -108,6 +138,19 @@ export class HeuristicDirector implements Director {
   async creative(input: {words: TimelineWord[]; style: StyleConfig; duration: number}) {
     return heuristicCreative(input.words, input.style, input.duration);
   }
+  async json<T extends z.ZodType>(): Promise<z.infer<T>> {
+    throw new Error('sem IA configurada');
+  }
+}
+
+/** a melhor IA disponível (Claude > OpenAI > regras) */
+export function bestDirector(prefer?: 'claude' | 'openai' | 'heuristic'): Director {
+  if (prefer) {
+    const d = getDirector(prefer);
+    if (d.id === prefer) return d;
+  }
+  const c = getDirector('claude');
+  return c.id === 'claude' ? c : getDirector('openai');
 }
 
 export function getDirector(id: 'claude' | 'openai' | 'heuristic'): Director {

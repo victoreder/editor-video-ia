@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       body,
       request: req,
       onBeforeGenerateToken: async (pathname) => {
-        if (!/^(projects|library)\//.test(pathname)) throw new Error('caminho inválido');
+        if (!/^(projects|library|styles)\//.test(pathname)) throw new Error('caminho inválido');
         return {
           allowedContentTypes: ['video/*', 'audio/*', 'image/*'],
           maximumSizeInBytes: 5 * 1024 * 1024 * 1024,

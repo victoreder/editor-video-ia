@@ -5,7 +5,7 @@
 import {z} from 'zod';
 import type {EditPlan, OverlayKind} from '../plan/schema';
 import {anchorAt, anchorRange, placeClips, timelineWords, type TimelineWord} from '../plan/timeline';
-import {getStyle, type StyleConfig} from '../styles';
+import {styleOf, type StyleConfig} from '../styles';
 import {EMOJI_PT, normWord, wordScore} from './captions';
 import {uid} from '../util/id';
 
@@ -37,7 +37,7 @@ export const CreativeSchema = z.object({
     z.object({
       start: z.number(),
       end: z.number(),
-      kind: z.enum(['stat', 'list', 'title', 'quote', 'emoji', 'strike', 'chips']),
+      kind: z.enum(['stat', 'list', 'title', 'quote', 'emoji', 'strike', 'chips', 'compare', 'steps', 'chart', 'lowerthird', 'confetti', 'ui', 'behind']),
       value: z.string(),
       label: z.string(),
       title: z.string(),
@@ -159,12 +159,46 @@ export function heuristicCreative(words: TimelineWord[], style: StyleConfig, dur
       const items = s.text.split(',').map((x) => x.trim().split(/\s+/).slice(-3).join(' ').replace(/[.!?]$/, '')).filter(Boolean).slice(0, 4);
       c.overlays.push({...base, start: s.start, end, kind: 'list', items, reason: 'lista falada'});
       busy.push([s.start, end]);
+    } else if (/\b(antes|versus|vs\.?|em vez de|comparado|do que)\b/i.test(s.text) && /\b(depois|agora|hoje|melhor|pior|mais|menos)\b/i.test(s.text) && free(s.start, end)) {
+      // comparação: "antes X, depois Y" → dois cartões
+      const parts = s.text.split(/,|\b(?:depois|agora|versus|vs\.?|em vez de)\b/i).map((x) => x.trim().split(/\s+/).slice(-3).join(' ').replace(/[.!?]$/, '')).filter(Boolean);
+      if (parts.length >= 2) {
+        c.overlays.push({...base, start: s.start, end, kind: 'compare', items: [`Antes|${parts[0]}`, `Depois|${parts[1]}*`], reason: 'contraste falado'});
+        busy.push([s.start, end]);
+      }
+    } else if (/\b(primeiro|segundo|terceiro|passo|depois disso|por fim|finalmente)\b/i.test(s.text) && free(s.start, end)) {
+      // processo: os passos que a pessoa enumera (até 3, com as palavras de cada trecho)
+      const items = s.text.split(/\b(?:primeiro|segundo|terceiro|depois disso|por fim|finalmente)\b,?/i).map((x) => x.trim().split(/\s+/).slice(0, 3).join(' ').replace(/[.,!?]$/, '')).filter((x) => x.length > 1).slice(0, 3);
+      if (items.length >= 2) {
+        c.overlays.push({...base, start: s.start, end, kind: 'steps', items, reason: 'processo em passos'});
+        busy.push([s.start, end]);
+      }
     } else if (/\bn[ãa]o (é|são|foi)\b/i.test(s.text) && free(s.start, end)) {
       const after = s.text.split(/n[ãa]o (?:é|são|foi)/i)[1]?.trim().split(/\s+/).slice(0, 3).join(' ') ?? '';
       if (after) {
         c.overlays.push({...base, start: s.start, end, kind: 'strike', text: after.replace(/[.,!?]$/, '').toUpperCase(), reason: 'mito negado'});
         busy.push([s.start, end]);
       }
+    }
+  }
+
+  // texto atrás da pessoa: a palavra mais forte do vídeo (estilos com gancho), 1 por vídeo
+  if (style.hook) {
+    let best: TimelineWord | null = null;
+    let bs = 0;
+    for (const w of words) {
+      if (w.start < 1.5 || w.start > duration * 0.7) continue;
+      const sc = wordScore(w.text, 1);
+      if (sc >= 7 && sc > bs && free(w.start - 0.1, w.start + 1.6, 0.6)) {
+        bs = sc;
+        best = w;
+      }
+    }
+    const b = best as TimelineWord | null;
+    if (b) {
+      const text = b.text.replace(/[^\p{L}\p{N}%$]/gu, '').toUpperCase();
+      c.overlays.push({label: '', title: '', items: [], emoji: '', value: '', start: b.start - 0.05, end: b.start + 1.6, kind: 'behind', text, reason: 'palavra mais forte, atrás da pessoa'});
+      busy.push([b.start, b.start + 1.6]);
     }
   }
 
@@ -254,7 +288,7 @@ export function fillStatic(creative: Creative, cuts: number[], duration: number,
 
 /** Ancora o plano criativo na fonte e preenche o EditPlan. */
 export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
-  const style = getStyle(plan.style);
+  const style = styleOf(plan);
   const tw = timelineWords(plan);
   const placedAll = placeClips(plan.clips, plan.format.fps);
   const duration = placedAll.at(-1)?.end ?? 0;
@@ -280,7 +314,8 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
     if (o.items?.length) props.items = o.items.slice(0, 5);
     if (o.text) props.text = o.text;
     if (o.emoji) props.emoji = o.emoji;
-    overlays.push({id: uid('ov'), sourceId: r.sourceId, start: r.start, end: r.end, kind: o.kind as OverlayKind, props, layout: o.kind === 'title' ? 'full' : 'card', reason: o.reason});
+    const layout = o.kind === 'title' || o.kind === 'confetti' || o.kind === 'behind' ? 'full' : o.kind === 'ui' || o.kind === 'lowerthird' ? 'top' : 'card';
+    overlays.push({id: uid('ov'), sourceId: r.sourceId, start: r.start, end: r.end, kind: o.kind as OverlayKind, props, layout, reason: o.reason});
   }
 
   const broll: EditPlan['broll'] = [];
@@ -326,7 +361,7 @@ export function applyCreative(plan: EditPlan, creative: Creative): EditPlan {
     hook: creative.hook && style.hook ? {title: creative.hook, until: 2} : undefined,
     outro: style.cta ? {title: style.cta, duration: 1.6} : undefined,
     progressBar: style.progress,
-    grade: {look: style.grade, faceLift: 0},
+    grade: {...plan.grade, look: style.grade},
     meta: {...plan.meta, notes: [...creative.notes]},
   };
   next.transitions = placeTransitions(next, creative.transitions, style);

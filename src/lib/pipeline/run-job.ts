@@ -3,6 +3,8 @@
 import {getDb, type Job} from '../adapters/db';
 import {brollJob, processProject, replanProject} from './process';
 import {renderJob} from './render';
+import {referenceJob} from './reference';
+import {matteJob, musicJob, postpackJob, shortsJob, thumbnailJob} from './extras';
 
 export async function runJob(jobId: string): Promise<void> {
   const db = getDb();
@@ -42,6 +44,24 @@ export async function runJob(jobId: string): Promise<void> {
       case 'render':
         result = await renderJob(job, report, log);
         break;
+      case 'reference':
+        result = await referenceJob(job, report, log);
+        break;
+      case 'shorts':
+        result = await shortsJob(job, report, log);
+        break;
+      case 'postpack':
+        result = await postpackJob(job, report, log);
+        break;
+      case 'thumbnail':
+        result = await thumbnailJob(job, report);
+        break;
+      case 'matte':
+        result = await matteJob(job, report, log);
+        break;
+      case 'music':
+        result = await musicJob(job, report, log);
+        break;
       default:
         throw new Error(`tipo de job desconhecido: ${job.type}`);
     }
@@ -50,6 +70,6 @@ export async function runJob(jobId: string): Promise<void> {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(e);
     await db.updateJob(jobId, {status: 'error', label: 'Erro', error: msg, result: {logs}});
-    if (job.type === 'process' || job.type === 'render') await db.updateProject(job.projectId, {status: job.type === 'render' ? 'ready' : 'error', error: msg}).catch(() => undefined);
+    if ((job.type === 'process' || job.type === 'render') && job.projectId) await db.updateProject(job.projectId, {status: job.type === 'render' ? 'ready' : 'error', error: msg}).catch(() => undefined);
   }
 }

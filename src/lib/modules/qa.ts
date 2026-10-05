@@ -3,7 +3,7 @@
 // B-roll sem arquivo? gráficos cobrindo demais? Inspirado em kamgasimo/verify.mjs,
 // review.md e ghost-editor/qa.py (MIT).
 import type {EditPlan} from '../plan/schema';
-import {getStyle} from '../styles';
+import {styleOf} from '../styles';
 import {placeClips, projectRange} from '../plan/timeline';
 import {projectBeats} from '../plan/camera';
 import {projectedCaptionTimes} from './captions';
@@ -13,7 +13,7 @@ export type QaIssue = {level: 'error' | 'warning' | 'info'; code: string; messag
 
 export function runQa(plan: EditPlan): QaIssue[] {
   const issues: QaIssue[] = [];
-  const style = getStyle(plan.style);
+  const style = styleOf(plan);
   const {fps, height: H} = plan.format;
   const placed = placeClips(plan.clips, fps);
   const D = placed.at(-1)?.end ?? 0;

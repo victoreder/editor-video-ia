@@ -19,7 +19,9 @@
     "lint": "tsc --noEmit",
     "remotion:bundle": "remotion bundle src/remotion/index.ts --out-dir remotion-bundle --public-dir public",
     "e2e": "tsx scripts/e2e.ts",
-    "music:generate": "tsx scripts/generate-music.ts"
+    "music:generate": "tsx scripts/generate-music.ts",
+    "worker:daemon": "tsx worker/daemon.ts",
+    "mcp": "tsx mcp/server.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

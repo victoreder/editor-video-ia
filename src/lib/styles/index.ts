@@ -2,49 +2,13 @@
 // transições, densidade de gráficos/B-roll, SFX e música. Formato baseado no
 // kamgasimo/styles/dynamic.json e nos 7 estilos do ghost-editor (MIT).
 // Imports relativos: também é usado dentro do bundle do Remotion.
-import type {CaptionPreset, SfxKind, StyleId, TransitionKind} from '../plan/schema';
+import type {StyleConfig, StyleId} from '../plan/schema';
 
-export type StyleConfig = {
-  id: StyleId;
-  name: string;
-  summary: string;
-  palette: {text: string; accent: string; key: string; panel: string; panelText: string; bg: string; muted: string};
-  fonts: {display: string; body: string; displayWeight: number};
-  captions: {
-    preset: CaptionPreset;
-    uppercase: boolean;
-    maxWords: number;
-    sizePx: number; // tamanho base em 1080 de largura
-    emphasisRate: number; // fração máx. de palavras com destaque
-    emojiEvery: number; // 1 emoji a cada N blocos (0 = nunca)
-  };
-  camera: {
-    levels: number[]; // um nível diferente a cada corte
-    push: number; // quanto o slow push sobe em trechos longos
-    punchScale: [number, number]; // snap zoom na palavra forte
-    punchEvery: number; // mínimo de segundos entre snaps
-    maxZoom: number;
-    shake: boolean;
-  };
-  transitions: {set: TransitionKind[]; minGap: number; duration: number};
-  graphics: {coverage: [number, number]; perMinute: number};
-  broll: {perMinute: number; templates: Array<'card' | 'split' | 'takeover' | 'pip'>};
-  maxStatic: number;
-  sfx: {
-    density: 'low' | 'medium' | 'high';
-    transition: SfxKind[];
-    enter: SfxKind;
-    punch: SfxKind | null;
-    hook: SfxKind | null;
-  };
-  music: {mood: 'upbeat' | 'calm' | 'cinematic'; volume: number};
-  grade: 'punchy' | 'clean' | 'film' | 'none';
-  hook: boolean;
-  cta: string | null;
-  progress: boolean;
-};
+export type {StyleConfig};
 
-export const STYLES: Record<StyleId, StyleConfig> = {
+export const BUILTIN_STYLE_IDS = ['dynamic', 'clean', 'pop', 'minimal'] as const;
+
+export const STYLES: Record<(typeof BUILTIN_STYLE_IDS)[number], StyleConfig> = {
   dynamic: {
     id: 'dynamic',
     name: 'Dynamic creator',
@@ -123,5 +87,12 @@ export const STYLES: Record<StyleId, StyleConfig> = {
   },
 };
 
-export const getStyle = (id: StyleId | string | undefined): StyleConfig => STYLES[(id as StyleId) ?? 'dynamic'] ?? STYLES.dynamic;
+export const isBuiltinStyle = (id: string): id is (typeof BUILTIN_STYLE_IDS)[number] => (BUILTIN_STYLE_IDS as readonly string[]).includes(id);
+
+/** estilo pronto pelo id (estilos próprios vêm no plano: use styleOf) */
+export const getStyle = (id: StyleId | undefined): StyleConfig => (id && isBuiltinStyle(id) ? STYLES[id] : STYLES.dynamic);
+
+/** o estilo efetivo de um plano: a cópia do estilo próprio, se houver, senão o pronto */
+export const styleOf = (plan: {style: StyleId; styleConfig?: StyleConfig}): StyleConfig => plan.styleConfig ?? getStyle(plan.style);
+
 export const STYLE_LIST = Object.values(STYLES);

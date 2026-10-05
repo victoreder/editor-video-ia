@@ -3,7 +3,7 @@
 import type {BrollSegment, CaptionChunk, Clip, EditPlan, Overlay, OverlayKind, SfxKind, ZoomBeat} from '../lib/plan/schema';
 import {anchorAt, anchorRange, placeClips, projectPoint, projectRange, sampleTransform, srcToTimeline, timelineToSource} from '../lib/plan/timeline';
 import {projectedCaptionTimes} from '../lib/modules/captions';
-import {getStyle} from '../lib/styles';
+import {styleOf} from '../lib/styles';
 import {uid} from '../lib/util/id';
 
 export type ItemKind = 'clip' | 'caption' | 'overlay' | 'broll' | 'zoom' | 'sfx' | 'transition';
@@ -176,9 +176,26 @@ export function deleteItem(plan: EditPlan, sel: Selection): EditPlan {
 export function addOverlay(plan: EditPlan, t: number, kind: OverlayKind): {plan: EditPlan; id?: string} {
   const r = anchorRange(plan, t, t + 2.5);
   if (!r) return {plan};
-  const props: Overlay['props'] =
-    kind === 'stat' ? {value: '100%', label: 'resultado'} : kind === 'list' || kind === 'chips' ? {items: ['Item 1', 'Item 2', 'Item 3']} : kind === 'emoji' ? {emoji: '🔥'} : kind === 'quote' ? {text: 'Uma frase marcante', label: 'Alguém'} : {text: 'TEXTO'};
-  const o: Overlay = {id: uid('ov'), sourceId: r.sourceId, start: r.start, end: r.end, kind, props, layout: kind === 'title' ? 'full' : 'card'};
+  const DEFAULTS: Partial<Record<OverlayKind, Overlay['props']>> = {
+    stat: {value: '100%', label: 'resultado'},
+    list: {items: ['Item 1', 'Item 2', 'Item 3']},
+    chips: {items: ['Item 1', 'Item 2', 'Item 3']},
+    emoji: {emoji: '🔥'},
+    quote: {text: 'Uma frase marcante', label: 'Alguém'},
+    compare: {items: ['Antes|10', 'Depois|50*']},
+    steps: {items: ['Grave', 'Edite', 'Publique']},
+    chart: {title: 'Crescimento', items: ['Jan:10', 'Fev:25', 'Mar:60']},
+    lowerthird: {text: 'Seu Nome', label: 'Sua função'},
+    ui: {title: 'terminal', items: ['$ npm run editar', '[IA] analisando o vídeo…', '✓ reel pronto']},
+    confetti: {emoji: '🎉'},
+    sticker: {emoji: '😂', text: ''},
+    behind: {text: 'UAU'},
+  };
+  const props: Overlay['props'] = DEFAULTS[kind] ?? {text: 'TEXTO'};
+  const layout = kind === 'title' || kind === 'confetti' || kind === 'behind' ? 'full' : kind === 'ui' || kind === 'lowerthird' ? 'top' : 'card';
+  const dur = kind === 'behind' ? 1.6 : kind === 'confetti' ? 2 : 2.5;
+  const r2 = dur !== 2.5 ? anchorRange(plan, t, t + dur) ?? r : r;
+  const o: Overlay = {id: uid('ov'), sourceId: r2.sourceId, start: r2.start, end: r2.end, kind, props, layout};
   return {plan: {...plan, overlays: [...plan.overlays, o]}, id: o.id};
 }
 
@@ -197,7 +214,7 @@ export function addBroll(plan: EditPlan, t: number, asset?: Partial<BrollSegment
 }
 
 export function addZoom(plan: EditPlan, t: number, style: ZoomBeat['style'] = 'punch'): {plan: EditPlan; id?: string} {
-  const s = getStyle(plan.style);
+  const s = styleOf(plan);
   const r = anchorRange(plan, t, t + (style === 'push' ? 3 : style === 'shake' ? 0.3 : 1.2));
   if (!r) return {plan};
   const z: ZoomBeat = {id: uid('zb'), sourceId: r.sourceId, start: r.start, end: r.end, style, scale: style === 'punch' ? s.camera.punchScale[0] : style === 'push' ? 1 + s.camera.push * 2.5 : 1.04};

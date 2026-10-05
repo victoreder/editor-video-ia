@@ -1,23 +1,17 @@
 // Biblioteca de assets próprios (módulo 06): a IA consulta primeiro.
 // Guardada como library/index.json no storage; os arquivos sobem direto do navegador.
-import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs/promises';
 import {z} from 'zod';
 import {getStorage} from '@/lib/adapters/storage';
 import {loadLibrary} from '@/lib/pipeline/process';
 import {route, safeName} from '@/lib/server/http';
 import {uid} from '@/lib/util/id';
+import {writeJsonKey} from '@/lib/server/json-store';
 import type {LibraryAsset} from '@/lib/modules/broll-assets';
 
 export const dynamic = 'force-dynamic';
 
-async function saveLibrary(lib: LibraryAsset[]) {
-  const storage = getStorage();
-  const tmp = path.join(os.tmpdir(), `lib-${Date.now()}.json`);
-  await fs.writeFile(tmp, JSON.stringify(lib, null, 1));
-  await storage.putFile('library/index.json', tmp, 'application/json');
-}
+const saveLibrary = (lib: LibraryAsset[]) => writeJsonKey('library/index.json', lib);
 
 export async function GET() {
   return route(async () => {

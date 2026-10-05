@@ -3,7 +3,7 @@
 // (ui −14, whoosh −12, impact −8 dB). Regra: um som fraco a menos de 0,15 s de
 // um forte é descartado. Os sons são sintetizados (scripts/generate-sfx.ts).
 import type {EditPlan, SfxCue, SfxKind} from '../plan/schema';
-import {getStyle} from '../styles';
+import {styleOf} from '../styles';
 import {placeClips, projectPoint, projectRange} from '../plan/timeline';
 import {uid} from '../util/id';
 
@@ -13,7 +13,7 @@ export const SFX_GAIN_DB: Record<SfxKind, number> = {impact: -8, riser: -10, who
 export const SFX_LEAD: Record<SfxKind, number> = {whoosh: 0.18, swoosh: 0.12, riser: 1.4, impact: 0, pop: 0, click: 0, sparkle: 0, glitch: 0, ding: 0, typing: 0};
 
 export function planSfx(plan: EditPlan): SfxCue[] {
-  const style = getStyle(plan.style);
+  const style = styleOf(plan);
   const placed = placeClips(plan.clips, plan.format.fps);
   const manual = plan.audio.sfx.filter((s) => !s.auto);
   type Ev = {t: number; sourceId: string; srcAt: number; kind: SfxKind};
@@ -28,7 +28,8 @@ export function planSfx(plan: EditPlan): SfxCue[] {
     const c = plan.clips.find((x) => x.id === tr.clipId);
     if (c) add(c.sourceId, c.inSec, tr.kind === 'glitch' ? 'glitch' : pickT(i));
   });
-  for (const o of plan.overlays) add(o.sourceId, o.start, o.kind === 'strike' ? 'whoosh' : o.kind === 'title' ? 'impact' : style.sfx.enter);
+  const OVERLAY_SFX: Partial<Record<string, SfxKind>> = {strike: 'whoosh', title: 'impact', behind: 'impact', confetti: 'sparkle', ui: 'typing', lowerthird: 'swoosh', chart: 'swoosh'};
+  for (const o of plan.overlays) add(o.sourceId, o.start, OVERLAY_SFX[o.kind] ?? style.sfx.enter);
   plan.broll.forEach((b, i) => add(b.sourceId, b.start, b.template === 'takeover' || b.template === 'split' ? pickT(i + 1) : style.sfx.enter));
   if (style.sfx.punch && style.sfx.density !== 'low') for (const z of plan.camera.beats) if (z.style === 'punch') add(z.sourceId, z.start, style.sfx.punch);
   if (style.sfx.density === 'high') for (const c of plan.captions.chunks) if (c.emoji) add(c.sourceId, c.start, 'pop');

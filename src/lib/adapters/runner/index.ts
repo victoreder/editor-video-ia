@@ -64,7 +64,19 @@ export class VercelSandboxRunner implements Runner {
   }
 }
 
+/**
+ * Fila (VPS, fase 3): o job fica "queued" no banco e um ou mais `worker/daemon.ts`
+ * (outro container/serviço) pegam e executam, com concorrência controlada.
+ */
+export class QueueRunner implements Runner {
+  readonly kind = 'queue';
+  async start() {
+    /* o daemon pega da fila */
+  }
+}
+
 export function getRunner(): Runner {
+  if (config.runner === 'queue') return new QueueRunner();
   if (config.runner === 'vercel-sandbox') return new VercelSandboxRunner();
   if (config.runner === 'inline') return new InlineRunner();
   return new LocalRunner();

@@ -8,41 +8,10 @@ import type {Overlay} from '../../lib/plan/schema';
 import {clamp, envelope, pop} from '../anim';
 import {fontStack} from '../fonts';
 import {Selectable, useReel} from '../context';
+import {Card, useK} from './kit';
+import {Behind, Chart, Compare, Confetti, LowerThird, Steps, Sticker, Terminal} from './Extra';
 
 export type TimedOverlay = {o: Overlay; t0: number; t1: number};
-
-const useK = () => useVideoConfig().width / 1080;
-
-const Card: React.FC<{life: number; y: number; children: React.ReactNode; width?: number; light?: boolean}> = ({life, y, children, width = 860, light}) => {
-  const {style} = useReel();
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const k = useK();
-  const e = envelope(frame, fps, life);
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: `${y}%`,
-        left: '50%',
-        width: width * k,
-        marginLeft: (-width * k) / 2,
-        padding: 40 * k,
-        borderRadius: 44 * k,
-        background: light ? 'rgba(255,255,255,0.96)' : style.palette.panel.startsWith('#') ? `${style.palette.panel}ee` : style.palette.panel,
-        color: light ? '#111' : style.palette.panelText,
-        backdropFilter: 'blur(18px)',
-        boxShadow: '0 30px 80px rgba(0,0,0,0.38), 0 6px 18px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12)',
-        border: '1px solid rgba(255,255,255,0.14)',
-        opacity: e.alpha,
-        transform: `translateY(${(1 - e.enter) * 50 * k}px) scale(${0.9 + 0.1 * e.enter})`,
-        transformOrigin: '50% 100%',
-      }}
-    >
-      {children}
-    </div>
-  );
-};
 
 /** contagem para números ("87%" conta de 0 a 87) */
 function countUp(value: string, f: number): string {
@@ -178,7 +147,10 @@ const BigEmoji: React.FC<{o: Overlay; life: number}> = ({o, life}) => {
   );
 };
 
-const KIND: Record<Overlay['kind'], React.FC<{o: Overlay; life: number}>> = {stat: Stat, list: List, chips: Chips, title: Title, quote: Quote, strike: Strike, emoji: BigEmoji};
+const KIND: Record<Overlay['kind'], React.FC<{o: Overlay; life: number}>> = {
+  stat: Stat, list: List, chips: Chips, title: Title, quote: Quote, strike: Strike, emoji: BigEmoji,
+  compare: Compare, steps: Steps, chart: Chart, lowerthird: LowerThird, confetti: Confetti, ui: Terminal, sticker: Sticker, behind: Behind,
+};
 
 export const OverlaysLayer: React.FC<{items: TimedOverlay[]}> = ({items}) => {
   const {fps} = useVideoConfig();

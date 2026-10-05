@@ -3,7 +3,7 @@
 // Baseado em kamgasimo/captions.mjs, autobroll/captions-multiclip.mjs e
 // motion-script/correct-captions.mjs (MIT), reescrito para PT-BR.
 import type {CaptionChunk, EditPlan, Word} from '../plan/schema';
-import {getStyle} from '../styles';
+import {styleOf} from '../styles';
 import {placeClips, srcToTimeline, timelineWords} from '../plan/timeline';
 import {uid} from '../util/id';
 
@@ -194,8 +194,8 @@ export function decorateChunks(chunks: CaptionChunk[], opts: {emphasisRate: numb
 }
 
 /** Gera as legendas do plano a partir das palavras e dos clipes atuais. */
-export function buildCaptions(plan: Pick<EditPlan, 'words' | 'clips' | 'style' | 'format'>): CaptionChunk[] {
-  const style = getStyle(plan.style);
+export function buildCaptions(plan: Pick<EditPlan, 'words' | 'clips' | 'style' | 'styleConfig' | 'format'>): CaptionChunk[] {
+  const style = styleOf(plan);
   // só palavras que sobrevivem aos cortes (as cortadas não viram legenda)
   const kept = timelineWords(plan).map((tw) => plan.words.find((w) => w.sourceId === tw.sourceId && w.start === tw.srcStart)!);
   const chunks = chunkWords(kept.filter(Boolean), {maxWords: style.captions.maxWords, upper: style.captions.uppercase});

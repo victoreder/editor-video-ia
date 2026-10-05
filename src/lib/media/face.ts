@@ -26,9 +26,25 @@ export async function trackFace(video: string, sourceId: string, workDir: string
     await run(PYTHON, [path.join(process.cwd(), 'worker', 'face_track.py'), '--input', video, '--output', out, '--fps', '5']);
     const j = JSON.parse(await fs.readFile(out, 'utf8')) as {samples: FaceSample[]; method: string};
     if (!j.samples.length) return null;
-    return {sourceId, samples: cleanSamples(j.samples), method: j.method};
+    return {sourceId, samples: cameraPath(cleanSamples(j.samples)), method: j.method};
   } catch (e) {
     console.warn(`[face] rastreamento indisponível (${String(e).slice(0, 160)}); usando enquadramento padrão`);
     return null;
   }
+}
+
+/**
+ * Reframe "como um cinegrafista" (kamgasimo/reframe.mjs, MIT): a câmera só se
+ * move quando a cabeça sai de uma zona morta (4% da largura) e então anda com
+ * suavidade até ela. Grava `fx` em cada amostra; o player usa fx no lugar de cx.
+ */
+export function cameraPath(samples: FaceSample[], deadzone = 0.04, follow = 0.18): FaceSample[] {
+  if (!samples.length) return samples;
+  let cam = samples[0].cx;
+  let target = cam;
+  return samples.map((s) => {
+    if (Math.abs(s.cx - target) > deadzone) target = s.cx;
+    cam += (target - cam) * follow;
+    return {...s, fx: +cam.toFixed(4)};
+  });
 }

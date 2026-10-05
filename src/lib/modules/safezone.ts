@@ -131,7 +131,7 @@ export function placeCard(plan: EditPlan, t0: number, t1: number, hPx: number): 
   return null;
 }
 
-export const CARD_HEIGHT_PX = {stat: 360, list: 440, chips: 220, quote: 420, strike: 260, emoji: 300, title: 0, broll: 460} as const;
+export const CARD_HEIGHT_PX: Record<string, number> = {stat: 360, list: 440, chips: 220, quote: 420, strike: 260, emoji: 0, title: 0, compare: 400, steps: 440, chart: 520, lowerthird: 0, confetti: 0, ui: 0, sticker: 0, behind: 0, broll: 460};
 
 /** calcula o `y` dos cards (gráficos e B-roll "card") e devolve as áreas ocupadas */
 export function placeCards(plan: EditPlan): {plan: EditPlan; occupied: Occupied[]} {
