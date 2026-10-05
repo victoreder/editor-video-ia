@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 type Ctx = {params: Promise<{id: string}>};
 
 const Body = z.object({
-  type: z.enum(['shorts', 'postpack', 'thumbnail', 'matte', 'music']),
+  type: z.enum(['preview', 'shorts', 'postpack', 'thumbnail', 'matte', 'music']),
   input: z.record(z.string(), z.unknown()).default({}),
 });
 

@@ -1,7 +1,7 @@
 // Executa um job pelo id (chamado pelo worker/cli.ts em qualquer runner).
 // Progresso no formato do autobroll (PROGRESS:pct:label) no log + no banco.
 import {getDb, type Job} from '../adapters/db';
-import {brollJob, processProject, replanProject} from './process';
+import {brollJob, previewJob, processProject, replanProject} from './process';
 import {renderJob} from './render';
 import {referenceJob} from './reference';
 import {matteJob, musicJob, postpackJob, shortsJob, thumbnailJob} from './extras';
@@ -56,6 +56,9 @@ export async function runJob(jobId: string): Promise<void> {
     await ensureFfmpeg();
     let result: Record<string, unknown>;
     switch (job.type as Job['type']) {
+      case 'preview':
+        result = await previewJob(job, report, log);
+        break;
       case 'process':
         result = await processProject(job, report, log);
         break;

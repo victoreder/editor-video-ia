@@ -9,7 +9,7 @@ import {getDb, type Job, type PlanVariant, type Project} from '../adapters/db';
 import {getStorage} from '../adapters/storage';
 import {getTranscriber, type Transcript} from '../adapters/transcriber';
 import {getDirector, type Director} from '../adapters/director';
-import {extractAudio, frameAt, makeProxy, probe} from '../media/ffmpeg';
+import {extractAudio, frameAt, makePreview, makeProxy, probe} from '../media/ffmpeg';
 import {trackFace} from '../media/face';
 import {measureGrade} from '../media/grade';
 import {analyzeAudio} from '../media/silence';
@@ -45,6 +45,42 @@ async function cachedTranscript(audioPath: string, project: Project, duration: n
   return t;
 }
 
+/** gera e guarda a prévia leve de uma fonte (project.previews[sourceId]) */
+export async function savePreview(projectId: string, sourceId: string, proxyFile: string, duration: number, workDir: string, onProgress?: (f: number) => void) {
+  const out = path.join(workDir, `preview-${sourceId}.mp4`);
+  await makePreview(proxyFile, out, duration, onProgress);
+  const key = await getStorage().putFile(`projects/${projectId}/preview/${sourceId}.mp4`, out, 'video/mp4');
+  const db = getDb();
+  const cur = await db.getProject(projectId);
+  await db.updateProject(projectId, {previews: {...(cur?.previews ?? {}), [sourceId]: key}});
+  return key;
+}
+
+/** job "preview": cria as prévias que faltam (projetos processados antes da prévia leve existir) */
+export async function previewJob(job: Job, report: Reporter, log: (s: string) => void) {
+  const db = getDb();
+  const project = await db.getProject(job.projectId);
+  if (!project) throw new Error('projeto não encontrado');
+  const plan = await db.getPlan(project.id, (project.activeVariant ?? project.variants[0]) as PlanVariant);
+  if (!plan) throw new Error('plano não encontrado');
+  const todo = plan.sources.filter((s) => !project.previews?.[s.id]);
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), `preview-${project.id}-`));
+  try {
+    for (const [i, s] of todo.entries()) {
+      const base = (i / todo.length) * 100;
+      const span = 100 / todo.length;
+      await report(base + 2, `Baixando ${s.name}`);
+      const local = path.join(workDir, `proxy-${s.id}.mp4`);
+      await getStorage().download(s.proxyKey ?? s.key, local);
+      await savePreview(project.id, s.id, local, s.duration, workDir, (f) => void report(base + span * (0.3 + f * 0.65), `Gerando prévia leve de ${s.name}`));
+      log(`prévia leve: ${s.name}`);
+    }
+  } finally {
+    await fs.rm(workDir, {recursive: true, force: true});
+  }
+  return {previews: todo.length};
+}
+
 /** pré-processa cada upload: proxy, áudio, transcrição, rosto */
 export async function prepareSources(project: Project, report: Reporter, workDir: string, log: (s: string) => void) {
   const storage = getStorage();
@@ -66,6 +102,8 @@ export async function prepareSources(project: Project, report: Reporter, workDir
     await makeProxy(local, proxy, info.duration, (f) => void report(base + step * (0.1 + f * 0.3), `Gerando proxy de ${up.name}`));
     const pinfo = await probe(proxy);
     const proxyKey = await storage.putFile(`projects/${project.id}/proxy/${up.id}.mp4`, proxy, 'video/mp4');
+    await report(base + step * 0.4, `Gerando prévia leve de ${up.name}`);
+    await savePreview(project.id, up.id, proxy, pinfo.duration, workDir).catch((e) => log(`prévia leve falhou (${String(e).slice(0, 120)}); o editor usa o proxy`));
     let audioKey: string | undefined;
     const audio = path.join(workDir, `audio-${up.id}.mp3`);
     if (pinfo.hasAudio) {

@@ -57,6 +57,8 @@ export type Project = {
   activeVariant?: PlanVariant;
   exports: ExportItem[];
   thumbKey?: string;
+  /** prévia leve por fonte (sourceId → chave), usada só no editor */
+  previews?: Record<string, string>;
   postpack?: PostPack;
   /** vídeo longo → Shorts (fase 3) */
   parentId?: string;
@@ -64,7 +66,7 @@ export type Project = {
   shorts?: string[];
 };
 
-export type JobType = 'process' | 'replan' | 'render' | 'broll' | 'reference' | 'matte' | 'shorts' | 'thumbnail' | 'music' | 'postpack';
+export type JobType = 'preview' | 'process' | 'replan' | 'render' | 'broll' | 'reference' | 'matte' | 'shorts' | 'thumbnail' | 'music' | 'postpack';
 export type Job = {
   id: string;
   projectId: string;

@@ -75,13 +75,13 @@ export async function uploadToPrefix(prefix: 'styles' | 'library', file: File, o
   return uploadToTarget(target, key, file, onProgress);
 }
 
-export async function runProjectJob(projectId: string, type: 'shorts' | 'postpack' | 'thumbnail' | 'matte' | 'music', input: Record<string, unknown>, onUpdate: (j: Job) => void): Promise<Job> {
+export async function runProjectJob(projectId: string, type: 'preview' | 'shorts' | 'postpack' | 'thumbnail' | 'matte' | 'music', input: Record<string, unknown>, onUpdate: (j: Job) => void): Promise<Job> {
   const {job} = await api<{job: Job}>(`/api/projects/${projectId}/jobs`, {method: 'POST', json: {type, input}});
   onUpdate(job);
   return waitJob(job.id, onUpdate);
 }
 
-export const getPlan = (projectId: string, variant: string) => api<{plan: EditPlan; media: Record<string, string>}>(`/api/projects/${projectId}/plans/${variant}`);
+export const getPlan = (projectId: string, variant: string) => api<{plan: EditPlan; media: Record<string, string>; missingPreview?: boolean}>(`/api/projects/${projectId}/plans/${variant}`);
 export const savePlan = (projectId: string, variant: string, plan: EditPlan) => api<{ok: boolean; media: Record<string, string>}>(`/api/projects/${projectId}/plans/${variant}`, {method: 'PUT', json: {plan}});
 export const getJob = (id: string) => api<{job: Job}>(`/api/jobs/${id}`);
 
