@@ -11,6 +11,21 @@ export const normWord = (t: string) => t.toLowerCase().normalize('NFD').replace(
 
 // ---------------------------------------------------------------- correção
 
+export function levenshtein(a: string, b: string): number {
+  const dp = Array.from({length: b.length + 1}, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+}
+const similarRatio = (a: string, b: string) => 1 - levenshtein(a, b) / Math.max(a.length, b.length);
+
 /** Substitui sequências que batem com o glossário (inclusive nome quebrado em 2–3 palavras). */
 export function applyGlossary(words: Word[], glossary: string[], fixes: Record<string, string> = {}): Word[] {
   const rules = [
@@ -29,10 +44,12 @@ export function applyGlossary(words: Word[], glossary: string[], fixes: Record<s
         hit = {n, to: r.to};
         break;
       }
+      // nome quebrado em 2–3 palavras ("super base" → "Supabase") ou quase igual ("cloude" → "Claude")
       const joined = r.from.join('');
-      for (let m = 2; m <= 3 && !hit; m++) {
+      for (let m = r.from.length === 1 ? 1 : 2; m <= 3 && !hit; m++) {
         if (i + m > words.length) break;
-        if (words.slice(i, i + m).map((w) => normWord(w.text)).join('') === joined) hit = {n: m, to: r.to};
+        const got = words.slice(i, i + m).map((w) => normWord(w.text)).join('');
+        if (got === joined || (joined.length >= 5 && got[0] === joined[0] && similarRatio(got, joined) >= (m > 1 ? 0.75 : 0.8))) hit = {n: m, to: r.to};
       }
       if (hit) break;
     }

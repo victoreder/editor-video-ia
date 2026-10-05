@@ -147,7 +147,7 @@ export function heuristicCreative(words: TimelineWord[], style: StyleConfig, dur
       const digits = m[0].match(/\d+/)?.[0] ?? '';
       const numWord = s.words.find((w) => digits && w.text.includes(digits)) ?? s.words.find((w) => /\d/.test(w.text)) ?? s.words[0];
       // rótulo: as palavras da frase sem o número e sem a unidade dele
-      const inMatch = new Set(m[0].toLowerCase().split(/\s+/).map((x) => x.replace(/[^\p{L}\p{N}%$]/gu, '')));
+      const inMatch = new Set(nums.flatMap((x) => x[0].toLowerCase().split(/\s+/)).map((x) => x.replace(/[^\p{L}\p{N}%$]/gu, '')));
       const label = s.words
         .filter((w) => w !== numWord && !inMatch.has(w.text.toLowerCase().replace(/[^\p{L}\p{N}%$]/gu, '')) && !/\d/.test(w.text))
         .slice(-4)

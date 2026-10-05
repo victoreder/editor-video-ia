@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b0b10;
+  --color-panel: #14141c;
+  --color-panel2: #1b1b26;
+  --color-line: #2a2a3a;
+  --color-muted: #8b8ba3;
+  --color-brand: #7c5cff;
+  --color-brand2: #22d3ee;
+  --color-key: #ffd400;
+}
+
+:root { color-scheme: dark; }
+html, body { background: var(--color-bg); color: #e9e9f2; }
+body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
+
+@font-face { font-family: Inter; font-weight: 400; src: url(/fonts/inter-latin-400-normal.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: Inter; font-weight: 500; src: url(/fonts/inter-latin-500-normal.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: Inter; font-weight: 700; src: url(/fonts/inter-latin-700-normal.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: Inter; font-weight: 800; src: url(/fonts/inter-latin-800-normal.woff2) format("woff2"); font-display: swap; }
+
+@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed; }
+@utility btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed bg-brand text-white hover:brightness-110; }
+@utility btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed bg-panel2 text-white hover:bg-line; }
+@utility btn-danger { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed bg-red-600/80 text-white hover:bg-red-600; }
+@utility input { @apply w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-brand; }
+@utility label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-muted; }
+@utility card { @apply rounded-2xl border border-line bg-panel; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 10px; }
