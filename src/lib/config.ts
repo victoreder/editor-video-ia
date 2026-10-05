@@ -16,7 +16,11 @@ export const config = {
   publicBaseUrl: env('PUBLIC_BASE_URL', 'http://localhost:3000'),
 
   // Blob com chave (BLOB_READ_WRITE_TOKEN) ou no modo novo sem chave (BLOB_STORE_ID + OIDC da Vercel)
-  storage: env('STORAGE', process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? 'vercel-blob' : 'local') as 'local' | 'vercel-blob' | 's3',
+  // S3/MinIO (S3_ENDPOINT + chaves) tem prioridade; depois o Blob (com chave ou sem chave/OIDC); senão disco local
+  storage: env(
+    'STORAGE',
+    process.env.S3_ENDPOINT && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY ? 's3' : process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? 'vercel-blob' : 'local',
+  ) as 'local' | 'vercel-blob' | 's3',
   // Postgres da Vercel/Neon (DATABASE_URL ou POSTGRES_URL) → postgres; Supabase → supabase; senão JSON local
   db: env('DB', process.env.DATABASE_URL || process.env.POSTGRES_URL ? 'postgres' : process.env.SUPABASE_URL ? 'supabase' : 'local') as 'local' | 'supabase' | 'postgres',
   databaseUrl: env('DATABASE_URL', env('POSTGRES_URL')),

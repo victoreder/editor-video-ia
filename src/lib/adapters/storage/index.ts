@@ -12,7 +12,7 @@ export type UploadTarget =
   | {mode: 'local'; url: string; method: 'PUT'}
   // presigned: store no modo sem chave (OIDC) → o navegador usa uploadPresigned
   | {mode: 'vercel-blob'; handleUploadUrl: string; pathname: string; presigned?: boolean}
-  | {mode: 's3'; url: string; method: 'PUT'};
+  | {mode: 's3'; url: string; method: 'PUT'; headers?: Record<string, string>};
 
 export interface Storage {
   readonly kind: 'local' | 'vercel-blob' | 's3';
@@ -25,6 +25,8 @@ export interface Storage {
   exists(key: string): Promise<boolean>;
   delete(prefix: string): Promise<void>;
   uploadTarget(key: string, contentType: string): Promise<UploadTarget>;
+  /** link temporário para ler um arquivo privado (navegador/render); o próprio link se for público */
+  signedUrl?(keyOrUrl: string): Promise<string>;
 }
 
 export const BLOB_MISSING =
@@ -174,11 +176,11 @@ export class VercelBlobStorage implements Storage {
   }
 }
 
-/** troca as URLs de um mapa de mídia por links assinados (Blob privado), para o render */
+/** troca as URLs de um mapa de mídia por links assinados (Blob/S3 privados), para o render */
 export async function signMedia(media: Record<string, string>, storage: Storage): Promise<Record<string, string>> {
-  if (!(storage instanceof VercelBlobStorage)) return media;
+  if (!storage.signedUrl || (storage.kind === 's3' && process.env.RENDER_MEDIA_BASE_URL)) return media;
   const out: Record<string, string> = {};
-  for (const [k, u] of Object.entries(media)) out[k] = await storage.signedUrl(u);
+  for (const k of Object.keys(media)) out[k] = await storage.signedUrl(k);
   return out;
 }
 
@@ -195,15 +197,37 @@ export class S3Storage implements Storage {
       credentials: config.s3.accessKeyId ? {accessKeyId: config.s3.accessKeyId, secretAccessKey: config.s3.secretAccessKey} : undefined,
     });
   })();
+  /** bucket público (S3_PUBLIC_URL definido): links diretos; senão, links assinados */
+  private get isPublic() {
+    return Boolean(config.s3.publicUrl);
+  }
+  /** vídeos antigos que ficaram no Vercel Blob privado continuam abrindo */
+  private legacyBlob = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? new VercelBlobStorage() : null;
+
   publicUrl(key: string) {
+    if (isPrivateBlob(key) || (!isUrl(key) && !this.isPublic)) return `/api/media?u=${encodeURIComponent(key)}`;
     if (isUrl(key)) return key;
-    const base = config.s3.publicUrl || `${config.s3.endpoint}/${config.s3.bucket}`;
-    return `${base.replace(/\/$/, '')}/${key}`;
+    return `${config.s3.publicUrl.replace(/\/$/, '')}/${key}`;
   }
   renderUrl(key: string) {
     // dentro do Docker o render enxerga o MinIO pela rede interna
     if (!isUrl(key) && process.env.RENDER_MEDIA_BASE_URL) return `${process.env.RENDER_MEDIA_BASE_URL.replace(/\/$/, '')}/${config.s3.bucket}/${key}`;
-    return this.publicUrl(key);
+    return key;
+  }
+  /**
+   * Link assinado de leitura. A data de assinatura é arredondada para janelas de 6 h e o
+   * link vale 12 h: dentro da janela o link é sempre o mesmo (o player não recarrega a
+   * cada salvamento) e todo link entregue vale pelo menos 6 h.
+   */
+  async signedUrl(keyOrUrl: string): Promise<string> {
+    if (isPrivateBlob(keyOrUrl)) return this.legacyBlob ? this.legacyBlob.signedUrl(keyOrUrl) : keyOrUrl;
+    if (isUrl(keyOrUrl)) return keyOrUrl;
+    if (this.isPublic) return this.publicUrl(keyOrUrl);
+    const {GetObjectCommand} = await import('@aws-sdk/client-s3');
+    const {getSignedUrl} = await import('@aws-sdk/s3-request-presigner');
+    const WINDOW = 6 * 3600e3;
+    const signingDate = new Date(Math.floor(Date.now() / WINDOW) * WINDOW);
+    return getSignedUrl(await this.clientP, new GetObjectCommand({Bucket: config.s3.bucket, Key: keyOrUrl}), {expiresIn: 12 * 3600, signingDate});
   }
   async put(key: string, body: Buffer | string, contentType?: string) {
     const {PutObjectCommand} = await import('@aws-sdk/client-s3');
@@ -219,6 +243,7 @@ export class S3Storage implements Storage {
     return key;
   }
   async download(key: string, localPath: string) {
+    if (isPrivateBlob(key)) return downloadUrl(await this.signedUrl(key), localPath);
     if (isUrl(key)) return downloadUrl(key, localPath);
     const {GetObjectCommand} = await import('@aws-sdk/client-s3');
     const r = await (await this.clientP).send(new GetObjectCommand({Bucket: config.s3.bucket, Key: key}));
@@ -226,6 +251,7 @@ export class S3Storage implements Storage {
     await pipeline(r.Body as Readable, fs.createWriteStream(localPath));
   }
   async exists(key: string) {
+    if (isUrl(key)) return false;
     const {HeadObjectCommand} = await import('@aws-sdk/client-s3');
     try {
       await (await this.clientP).send(new HeadObjectCommand({Bucket: config.s3.bucket, Key: key}));
@@ -237,15 +263,46 @@ export class S3Storage implements Storage {
   async delete(prefix: string) {
     const {ListObjectsV2Command, DeleteObjectsCommand} = await import('@aws-sdk/client-s3');
     const c = await this.clientP;
-    const r = await c.send(new ListObjectsV2Command({Bucket: config.s3.bucket, Prefix: prefix}));
-    const keys = (r.Contents ?? []).map((o) => ({Key: o.Key!}));
-    if (keys.length) await c.send(new DeleteObjectsCommand({Bucket: config.s3.bucket, Delete: {Objects: keys}}));
+    for (let token: string | undefined; ; ) {
+      const r = await c.send(new ListObjectsV2Command({Bucket: config.s3.bucket, Prefix: prefix, ContinuationToken: token}));
+      const keys = (r.Contents ?? []).map((o) => ({Key: o.Key!}));
+      if (keys.length) await c.send(new DeleteObjectsCommand({Bucket: config.s3.bucket, Delete: {Objects: keys}}));
+      if (!r.IsTruncated) break;
+      token = r.NextContinuationToken;
+    }
+    // vídeos antigos do projeto que ainda estão no Blob
+    await this.legacyBlob?.delete(prefix).catch(() => undefined);
   }
   async uploadTarget(key: string, contentType: string): Promise<UploadTarget> {
     const {PutObjectCommand} = await import('@aws-sdk/client-s3');
     const {getSignedUrl} = await import('@aws-sdk/s3-request-presigner');
-    const url = await getSignedUrl(await this.clientP, new PutObjectCommand({Bucket: config.s3.bucket, Key: key, ContentType: contentType}), {expiresIn: 3600});
-    return {mode: 's3', url, method: 'PUT'};
+    const url = await getSignedUrl(await this.clientP, new PutObjectCommand({Bucket: config.s3.bucket, Key: key, ContentType: contentType}), {expiresIn: 6 * 3600});
+    // o navegador precisa mandar exatamente o content-type assinado (senão o S3 responde 403)
+    return {mode: 's3', url, method: 'PUT', headers: {'Content-Type': contentType}};
+  }
+
+  /** confere a conexão: cria o bucket se faltar, grava, lê por link assinado e apaga */
+  async check(): Promise<{ok: boolean; steps: string[]}> {
+    const steps: string[] = [];
+    const {HeadBucketCommand, CreateBucketCommand} = await import('@aws-sdk/client-s3');
+    const c = await this.clientP;
+    try {
+      await c.send(new HeadBucketCommand({Bucket: config.s3.bucket}));
+      steps.push(`bucket "${config.s3.bucket}" encontrado`);
+    } catch {
+      await c.send(new CreateBucketCommand({Bucket: config.s3.bucket}));
+      steps.push(`bucket "${config.s3.bucket}" criado`);
+    }
+    const key = `cache/check-${Date.now()}.txt`;
+    await this.put(key, 'ok', 'text/plain');
+    steps.push('gravação ok');
+    const url = await this.signedUrl(key);
+    const r = await fetch(url);
+    const body = await r.text();
+    steps.push(r.ok && body === 'ok' ? 'leitura por link ok' : `leitura falhou (${r.status})`);
+    await this.delete(key);
+    steps.push('exclusão ok');
+    return {ok: r.ok && body === 'ok', steps};
   }
 }
 

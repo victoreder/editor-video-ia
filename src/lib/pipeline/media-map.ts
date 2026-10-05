@@ -30,12 +30,12 @@ export const publicMediaMap = (plan: EditPlan, storage: Storage) => mediaMap(pla
  */
 export async function browserMediaMap(plan: EditPlan, storage: Storage, previews: Record<string, string> = {}): Promise<Record<string, string>> {
   const byProxy = new Map(plan.sources.filter((s) => previews[s.id]).map((s) => [s.proxyKey ?? s.key, previews[s.id]]));
-  const signed = 'signedUrl' in storage ? (storage as Storage & {signedUrl(u: string): Promise<string>}) : null;
+  const signed = storage.signedUrl ? storage : null;
   const out: Record<string, string> = {};
   await Promise.all(
     mediaKeys(plan).map(async (k) => {
       const src = byProxy.get(k) ?? k;
-      out[k] = signed ? await signed.signedUrl(src).catch(() => storage.publicUrl(src)) : storage.publicUrl(src);
+      out[k] = signed?.signedUrl ? await signed.signedUrl(src).catch(() => storage.publicUrl(src)) : storage.publicUrl(src);
     }),
   );
   return out;
