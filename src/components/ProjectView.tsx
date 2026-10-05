@@ -9,6 +9,9 @@ import type {Job} from '@/lib/adapters/db/types';
 import type {EditPlan} from '@/lib/plan/schema';
 import {Editor} from '@/editor/Editor';
 import {useEditor} from '@/editor/store';
+import {AppShell, Page, PageHeader} from './ui/AppShell';
+import {Icon, Spinner} from './ui/Icon';
+import {DIRECTOR_LABEL, PLATFORM_LABEL, StatusBadge, timeAgo} from './ui/status';
 
 type Loaded = {project: PV; jobs: Job[]};
 const LABEL: Record<string, string> = {claude: 'Claude', openai: 'OpenAI', heuristic: 'Regras (sem IA)'};
@@ -90,8 +93,8 @@ export default function ProjectView({id}: {id: string}) {
     if (v) openVariant(v);
   }, [data, comparing, variant, openVariant]);
 
-  if (err) return <Centered><p className="text-red-300">{err}</p></Centered>;
-  if (!data) return <Centered><p className="text-muted">Carregando…</p></Centered>;
+  if (err) return <Centered><Icon name="alert" className="text-danger" /><p className="text-red-300">{err}</p></Centered>;
+  if (!data) return <Centered><Spinner className="text-brand" /> Carregando…</Centered>;
   const {project, jobs} = data;
   const job = jobs.find((j) => j.type === 'process');
   const stop = async () => {
@@ -109,75 +112,109 @@ export default function ProjectView({id}: {id: string}) {
     }
   };
 
-  if (project.status === 'processing' || project.status === 'draft') {
+  if (project.status === 'processing' || project.status === 'draft' || (project.status === 'error' && !project.variants.length)) {
+    const failed = project.status === 'error';
+    const progress = job?.progress ?? 0;
+    const retry = async () => {
+      await api(`/api/projects/${id}/process`, {method: 'POST'});
+      load();
+    };
     return (
-      <Centered>
-        <div className="card w-full max-w-lg p-8">
-          <h1 className="mb-1 text-xl font-bold">{project.name}</h1>
-          <p className="mb-6 text-sm text-muted">A IA está editando: transcrição → takes → cortes → legendas → zoom, B-roll, gráficos e sons.</p>
-          <div className="mb-2 flex justify-between text-sm">
-            <span>{job?.label ?? 'Na fila'}</span>
-            <span className="tabular-nums">{job?.progress ?? 0}%</span>
+      <AppShell>
+        <Page>
+          <PageHeader
+            crumbs={[{href: '/', label: 'Projetos'}]}
+            title={project.name}
+            subtitle={failed ? 'O processamento parou com um erro.' : 'A IA está fazendo a primeira edição. Quando terminar, o editor abre sozinho.'}
+            actions={
+              <>
+                {project.status === 'processing' && (
+                  <button className="btn-ghost" onClick={stop}>
+                    <Icon name="stop" size={12} /> Parar
+                  </button>
+                )}
+                <button className="btn-ghost text-red-300" onClick={remove}>
+                  <Icon name="trash" /> Excluir
+                </button>
+              </>
+            }
+          />
+          <div className="grid items-start gap-6 lg:grid-cols-[1fr_320px]">
+            <section className="card p-6 sm:p-8">
+              {failed ? (
+                <div>
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-danger/15 text-danger">
+                    <Icon name="alert" size={22} />
+                  </div>
+                  <h2 className="text-lg font-bold">Algo deu errado</h2>
+                  <pre className="mt-3 rounded-lg bg-bg p-3 text-xs whitespace-pre-wrap text-red-300">{project.error}</pre>
+                  {project.uploads.length > 0 && (
+                    <button className="btn-primary mt-5" onClick={retry}>
+                      <Icon name="refresh" /> Tentar de novo
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-semibold tracking-wide text-muted uppercase">{project.status === 'draft' && !job ? 'Aguardando' : 'Etapa atual'}</div>
+                      <div className="mt-1 flex items-center gap-2 text-lg font-bold">
+                        {(project.status === 'processing' || job) && <Spinner className="text-brand" />}
+                        {job?.label ?? 'Na fila'}
+                      </div>
+                    </div>
+                    <div className="text-4xl font-extrabold tracking-tight tabular-nums">
+                      {progress}
+                      <span className="text-xl text-muted">%</span>
+                    </div>
+                  </div>
+                  <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-panel3">
+                    <div className="h-full rounded-full bg-gradient-to-r from-brand to-brand2 transition-all duration-700" style={{width: `${Math.max(2, progress)}%`}} />
+                  </div>
+                  <Steps progress={progress} />
+                  {project.status === 'draft' && !job && project.uploads.length > 0 && (
+                    <button className="btn-primary mt-6" onClick={retry}>
+                      <Icon name="play" size={12} /> Processar
+                    </button>
+                  )}
+                  <p className="mt-6 flex items-center gap-2 text-xs text-muted">
+                    <Icon name="info" size={14} /> Pode fechar ou sair desta página: o processamento continua no servidor.
+                  </p>
+                </>
+              )}
+            </section>
+            <aside className="card p-5">
+              <h2 className="section-title">Detalhes</h2>
+              <dl className="space-y-2.5 text-sm">
+                <Detail k="Status" v={<StatusBadge status={project.status} />} />
+                <Detail k="IA diretora" v={DIRECTOR_LABEL[project.director] ?? project.director} />
+                <Detail k="Plataforma" v={PLATFORM_LABEL[project.platform] ?? project.platform} />
+                <Detail k="Criado" v={timeAgo(project.createdAt)} />
+              </dl>
+              {project.uploads.length > 0 && (
+                <>
+                  <h3 className="mt-5 mb-2 text-xs font-semibold tracking-wide text-muted uppercase">Arquivos</h3>
+                  <ul className="space-y-1.5">
+                    {project.uploads.map((u) => (
+                      <li key={u.id} className="flex items-center gap-2 text-xs">
+                        <Icon name="film" size={14} className="text-subtle" />
+                        <span className="min-w-0 flex-1 truncate">{u.name}</span>
+                        <span className="text-muted tabular-nums">{(u.size / 1e6).toFixed(1)} MB</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </aside>
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-panel2">
-            <div className="h-full bg-gradient-to-r from-brand to-brand2 transition-all" style={{width: `${job?.progress ?? 2}%`}} />
-          </div>
-          <Steps progress={job?.progress ?? 0} />
-          <div className="mt-6 flex flex-wrap gap-2">
-            {project.status === 'draft' && !job && project.uploads.length > 0 && (
-              <button className="btn-primary" onClick={async () => {
-                await api(`/api/projects/${id}/process`, {method: 'POST'});
-                load();
-              }}>
-                Processar
-              </button>
-            )}
-            {project.status === 'processing' && (
-              <button className="btn-ghost" onClick={stop}>
-                Parar processamento
-              </button>
-            )}
-            <button className="btn-ghost text-red-300" onClick={remove}>
-              Excluir
-            </button>
-            <button className="btn-ghost ml-auto" onClick={() => router.push('/')}>
-              Voltar
-            </button>
-          </div>
-        </div>
-      </Centered>
-    );
-  }
-
-  if (project.status === 'error' && !project.variants.length) {
-    return (
-      <Centered>
-        <div className="card max-w-lg p-8">
-          <h1 className="mb-2 text-xl font-bold">Algo deu errado</h1>
-          <p className="mb-6 text-sm text-red-300">{project.error}</p>
-          <div className="flex gap-2">
-            {project.uploads.length > 0 && (
-              <button className="btn-primary" onClick={async () => {
-                await api(`/api/projects/${id}/process`, {method: 'POST'});
-                load();
-              }}>
-                Tentar de novo
-              </button>
-            )}
-            <button className="btn-ghost text-red-300" onClick={remove}>
-              Excluir
-            </button>
-            <button className="btn-ghost" onClick={() => router.push('/')}>
-              Voltar
-            </button>
-          </div>
-        </div>
-      </Centered>
+        </Page>
+      </AppShell>
     );
   }
 
   if (comparing) return <Compare id={id} variants={project.variants} onPick={openVariant} onBack={() => router.push('/')} />;
-  if (!variant || loadedVariant !== variant) return <Centered><p className="text-muted">Abrindo o editor…</p></Centered>;
+  if (!variant || loadedVariant !== variant) return <Centered><Spinner className="text-brand" /> Abrindo o editor…</Centered>;
   return (
     <>
       <Editor
@@ -186,36 +223,62 @@ export default function ProjectView({id}: {id: string}) {
         onSwitchVariant={(v) => (v === variant ? undefined : openVariant(v))}
         onBack={() => router.push('/')}
       />
-      {previewMsg && <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-panel2 px-4 py-2 text-xs shadow-lg">{previewMsg}</div>}
+      {previewMsg && (
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 animate-fade-in items-center gap-2 rounded-xl border border-line bg-panel2 px-4 py-2.5 text-xs shadow-pop">
+          <Spinner size={14} className="text-brand" /> {previewMsg}
+        </div>
+      )}
     </>
   );
 }
 
 const STEPS = [
-  [5, 'Proxy e áudio'],
-  [40, 'Transcrição'],
-  [55, 'Rosto'],
-  [62, 'Correção'],
-  [66, 'Takes e cortes'],
-  [70, 'IA diretora'],
-  [85, 'B-roll'],
-  [100, 'Pronto'],
+  [5, 'Proxy e áudio', 'prepara uma cópia leve do vídeo'],
+  [40, 'Transcrição', 'texto palavra a palavra'],
+  [55, 'Rosto', 'onde você está no quadro'],
+  [62, 'Correção', 'glossário e pontuação'],
+  [66, 'Takes e cortes', 'pausas, erros e repetições'],
+  [70, 'IA diretora', 'zoom, gráficos, transições e sons'],
+  [85, 'B-roll', 'busca e gera as imagens de apoio'],
+  [100, 'Pronto', 'abre o editor'],
 ] as const;
 
 function Steps({progress}: {progress: number}) {
+  const current = STEPS.findIndex(([p]) => progress < p);
   return (
-    <ol className="mt-6 grid grid-cols-2 gap-1 text-xs">
-      {STEPS.map(([p, l]) => (
-        <li key={l} className={progress >= p ? 'text-white' : 'text-muted'}>
-          {progress >= p ? '✓' : '○'} {l}
-        </li>
-      ))}
+    <ol className="mt-8 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+      {STEPS.map(([p, l, d], i) => {
+        const done = progress >= p;
+        const now = i === current;
+        return (
+          <li key={l} className="flex items-start gap-3">
+            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${done ? 'border-ok/40 bg-ok/15 text-ok' : now ? 'border-brand bg-brand/15 text-brand' : 'border-line text-subtle'}`}>
+              {done ? <Icon name="check" size={12} strokeWidth={3} /> : now ? <Spinner size={12} /> : i + 1}
+            </span>
+            <div>
+              <div className={`text-sm font-semibold ${done || now ? 'text-text' : 'text-muted'}`}>{l}</div>
+              <div className="text-xs text-muted">{d}</div>
+            </div>
+          </li>
+        );
+      })}
     </ol>
   );
 }
 
+const Detail = ({k, v}: {k: string; v: React.ReactNode}) => (
+  <div className="flex items-center justify-between gap-3">
+    <dt className="text-muted">{k}</dt>
+    <dd className="truncate text-right">{v}</dd>
+  </div>
+);
+
 function Centered({children}: {children: React.ReactNode}) {
-  return <main className="flex min-h-screen items-center justify-center p-4">{children}</main>;
+  return (
+    <main className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex items-center gap-3 text-muted">{children}</div>
+    </main>
+  );
 }
 
 /** modo Comparar: os dois planos lado a lado, preview ao vivo (sem render) */
@@ -232,16 +295,23 @@ function Compare({id, variants, onPick, onBack}: {id: string; variants: string[]
     }
   };
   return (
-    <main className="min-h-screen p-4">
-      <div className="mb-4 flex items-center gap-3">
-        <button className="btn-ghost" onClick={onBack}>
-          ←
-        </button>
-        <h1 className="text-lg font-bold">Comparar IAs diretoras</h1>
-        <button className="btn-ghost ml-auto" onClick={playAll}>
-          ▶ Tocar os dois do início
-        </button>
-      </div>
+    <AppShell wide>
+      <main className="mx-auto max-w-[1600px] px-4 py-8">
+      <PageHeader
+        crumbs={[{href: '/', label: 'Projetos'}]}
+        title="Comparar IAs diretoras"
+        subtitle="Dois planos de edição do mesmo vídeo. Assista lado a lado e escolha qual seguir editando — dá para trocar depois no editor."
+        actions={
+          <>
+            <button className="btn-ghost" onClick={onBack}>
+              <Icon name="back" /> Projetos
+            </button>
+            <button className="btn-primary" onClick={playAll}>
+              <Icon name="play" size={12} /> Tocar os dois do início
+            </button>
+          </>
+        }
+      />
       <div className="grid gap-6 md:grid-cols-2">
         {variants.map((v) => {
           const p = plans[v];
@@ -257,7 +327,7 @@ function Compare({id, variants, onPick, onBack}: {id: string; variants: string[]
                   )}
                 </div>
                 <button className="btn-primary" onClick={() => onPick(v)} disabled={!p}>
-                  Editar este
+                  <Icon name="check" /> Editar este
                 </button>
               </div>
               <div className="mx-auto" style={{aspectRatio: '9 / 16', maxHeight: '72vh'}}>
@@ -277,7 +347,7 @@ function Compare({id, variants, onPick, onBack}: {id: string; variants: string[]
                     acknowledgeRemotionLicense
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-muted">Carregando…</div>
+                  <div className="skeleton h-full rounded-xl" />
                 )}
               </div>
               {p && p.plan.meta.notes.length > 0 && <p className="mt-3 text-xs text-muted">{p.plan.meta.notes.join(' · ')}</p>}
@@ -285,6 +355,7 @@ function Compare({id, variants, onPick, onBack}: {id: string; variants: string[]
           );
         })}
       </div>
-    </main>
+      </main>
+    </AppShell>
   );
 }

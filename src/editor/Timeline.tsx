@@ -5,7 +5,10 @@
 import {useMemo, useRef, useState} from 'react';
 import type {EditPlan} from '../lib/plan/schema';
 import {useEditor} from './store';
-import {moveClip, retimeItem, timelineModel, trimClip, type ItemKind, type TimelineItem} from './ops';
+import {moveClip, retimeItem, splitAt, timelineModel, trimClip, type ItemKind, type TimelineItem} from './ops';
+import {Icon} from '../components/ui/Icon';
+
+const timecode = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
 const COLORS: Record<ItemKind, string> = {
   clip: 'bg-sky-600/80 border-sky-300',
@@ -19,7 +22,7 @@ const COLORS: Record<ItemKind, string> = {
 
 type Drag = {mode: 'move' | 'in' | 'out' | 'reorder'; item: TimelineItem; x0: number; base: EditPlan; dx: number};
 
-export function Timeline({onSeek}: {onSeek: (frame: number) => void}) {
+export function Timeline({onSeek, onTogglePlay}: {onSeek: (frame: number) => void; onTogglePlay?: () => void}) {
   const plan = useEditor((s) => s.plan)!;
   const frame = useEditor((s) => s.frame);
   const selected = useEditor((s) => s.selected);
@@ -85,12 +88,28 @@ export function Timeline({onSeek}: {onSeek: (frame: number) => void}) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-line px-3 py-1.5 text-xs text-muted">
-        <span>
-          {(frame / fps).toFixed(2)}s / {total.toFixed(2)}s
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-2 text-xs text-muted">
+        {onTogglePlay && (
+          <button className="btn-icon h-7 w-7" onClick={onTogglePlay} title="Tocar / pausar (Espaço)">
+            <Icon name="play" size={13} />
+          </button>
+        )}
+        <span className="rounded-md bg-panel2 px-2 py-1 font-mono text-[11px] tabular-nums">
+          <span className="text-text">{timecode(frame / fps)}</span>
+          <span className="text-subtle"> / {timecode(total)}</span>
         </span>
-        <span className="ml-auto">Zoom</span>
-        <input type="range" min={15} max={400} value={px} onChange={(e) => setPxPerSec(Number(e.target.value))} />
+        <button className="btn-icon ml-1 h-7 w-7" title="Dividir na agulha (S)" onClick={() => apply((p) => splitAt(p, frame / fps).plan, {refresh: true})}>
+          <Icon name="scissors" size={14} />
+        </button>
+        <div className="ml-auto flex items-center gap-1.5">
+          <button className="btn-icon h-7 w-7" title="Menos zoom" onClick={() => setPxPerSec(Math.max(15, Math.round(px / 1.4)))}>
+            <Icon name="zoomOut" size={14} />
+          </button>
+          <input type="range" className="w-28" min={15} max={400} value={px} onChange={(e) => setPxPerSec(Number(e.target.value))} aria-label="Zoom da timeline" />
+          <button className="btn-icon h-7 w-7" title="Mais zoom" onClick={() => setPxPerSec(Math.min(400, Math.round(px * 1.4)))}>
+            <Icon name="zoomIn" size={14} />
+          </button>
+        </div>
       </div>
       <div ref={scroller} className="relative flex-1 select-none overflow-auto" onPointerMove={move} onPointerUp={end} onPointerCancel={() => setDrag(null)}>
         <div style={{width}} className="relative">
@@ -106,8 +125,11 @@ export function Timeline({onSeek}: {onSeek: (frame: number) => void}) {
             </div>
           </div>
           {model.tracks.map((tr) => (
-            <div key={tr.kind} className="flex h-11 border-b border-line/60">
-              <div className="sticky left-0 z-10 flex w-24 shrink-0 items-center border-r border-line bg-panel px-2 text-[11px] font-semibold text-muted">{tr.label}</div>
+            <div key={tr.kind} className="flex h-11 border-b border-line/60 even:bg-white/[0.012]">
+              <div className="sticky left-0 z-10 flex w-24 shrink-0 items-center gap-2 border-r border-line bg-panel px-2.5 text-[11px] font-semibold text-muted">
+                <span className={`h-2 w-2 shrink-0 rounded-full border ${COLORS[tr.kind as ItemKind] ?? ''}`} />
+                <span className="truncate">{tr.label}</span>
+              </div>
               <div className="relative flex-1" onPointerDown={(e) => {
                 select(null);
                 onSeek(Math.round(timeAt(e.clientX) * fps));
@@ -151,7 +173,9 @@ export function Timeline({onSeek}: {onSeek: (frame: number) => void}) {
             </div>
           ))}
           {/* agulha */}
-          <div className="pointer-events-none absolute top-0 bottom-0 z-30 w-0.5 bg-key" style={{left: 96 + (frame / fps) * px}} />
+          <div className="pointer-events-none absolute top-0 bottom-0 z-30 w-0.5 bg-key shadow-[0_0_8px_rgb(255_212_0/0.6)]" style={{left: 96 + (frame / fps) * px}}>
+            <div className="absolute -top-0 -left-[5px] h-3 w-3 rotate-45 rounded-[2px] bg-key" />
+          </div>
         </div>
       </div>
     </div>

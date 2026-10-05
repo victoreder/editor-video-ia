@@ -1,31 +1,90 @@
 @import "tailwindcss";
 
+/*
+ * Design system do Editor de Vídeo IA
+ * - escuro, neutro (cinza-azulado) com um único acento violeta (brand)
+ * - ciano (brand2) para links/informação, amarelo (key) para a agulha e destaques
+ * - verde/âmbar/vermelho só para estado (ok / atenção / erro)
+ * - raios: 8px (controles), 12px (blocos), 16px (cards)
+ */
 @theme {
-  --color-bg: #0b0b10;
-  --color-panel: #14141c;
-  --color-panel2: #1b1b26;
-  --color-line: #2a2a3a;
+  --color-bg: #0a0a0f;
+  --color-panel: #111118;
+  --color-panel2: #181821;
+  --color-panel3: #20202b;
+  --color-line: #262633;
+  --color-line2: #33334a;
+  --color-text: #ececf3;
   --color-muted: #8b8ba3;
+  --color-subtle: #5f5f78;
   --color-brand: #7c5cff;
+  --color-brand-hover: #8f74ff;
   --color-brand2: #22d3ee;
   --color-key: #ffd400;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-danger: #f87171;
+
+  --shadow-pop: 0 12px 40px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --animate-fade-in: fade-in 0.18s ease-out;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
 }
 
 :root { color-scheme: dark; }
-html, body { background: var(--color-bg); color: #e9e9f2; }
-body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
+html, body { background: var(--color-bg); color: var(--color-text); }
+body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; font-feature-settings: "cv11", "ss01"; }
+::selection { background: color-mix(in srgb, var(--color-brand) 45%, transparent); }
+:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+input[type="range"] { accent-color: var(--color-brand); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--color-brand); width: 15px; height: 15px; }
 
 @font-face { font-family: Inter; font-weight: 400; src: url(/fonts/inter-latin-400-normal.woff2) format("woff2"); font-display: swap; }
 @font-face { font-family: Inter; font-weight: 500; src: url(/fonts/inter-latin-500-normal.woff2) format("woff2"); font-display: swap; }
 @font-face { font-family: Inter; font-weight: 700; src: url(/fonts/inter-latin-700-normal.woff2) format("woff2"); font-display: swap; }
 @font-face { font-family: Inter; font-weight: 800; src: url(/fonts/inter-latin-800-normal.woff2) format("woff2"); font-display: swap; }
 
-@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed; }
-@utility btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed bg-brand text-white hover:brightness-110; }
-@utility btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed bg-panel2 text-white hover:bg-line; }
-@utility btn-danger { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed bg-red-600/80 text-white hover:bg-red-600; }
-@utility input { @apply w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-brand; }
-@utility label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-muted; }
+/* botões */
+@utility btn { @apply inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold whitespace-nowrap transition select-none disabled:cursor-not-allowed disabled:opacity-40; }
+@utility btn-primary { @apply btn bg-brand text-white shadow-[0_1px_0_rgb(255_255_255/0.15)_inset] hover:bg-brand-hover; }
+@utility btn-ghost { @apply btn border border-line bg-panel2 text-text hover:border-line2 hover:bg-panel3; }
+@utility btn-quiet { @apply btn text-muted hover:bg-panel2 hover:text-text; }
+@utility btn-danger { @apply btn bg-red-600/85 text-white hover:bg-red-600; }
+@utility btn-lg { @apply px-5 py-2.5 text-[15px]; }
+@utility btn-sm { @apply gap-1.5 px-2 py-1 text-xs; }
+@utility btn-icon { @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-panel3 hover:text-text disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent; }
+
+/* formulários */
+@utility input { @apply w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-sm text-text outline-none transition placeholder:text-subtle hover:border-line2 focus:border-brand focus:ring-2 focus:ring-brand/25; }
+@utility label { @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase; }
+@utility hint { @apply mt-1.5 text-xs leading-relaxed text-muted; }
+
+/* superfícies */
 @utility card { @apply rounded-2xl border border-line bg-panel; }
+@utility surface { @apply rounded-xl border border-line bg-panel2; }
+@utility badge { @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap; }
+@utility kbd { @apply inline-flex min-w-5 items-center justify-center rounded border border-line2 bg-panel3 px-1 font-mono text-[10px] text-muted; }
+@utility section-title { @apply mb-3 text-[13px] font-bold tracking-wide text-text uppercase; }
+
+/* opção selecionável (estilo, plataforma, IA) */
+@utility option { @apply rounded-xl border border-line bg-panel2 p-3 text-left transition hover:border-line2 hover:bg-panel3; }
+@utility option-on { @apply rounded-xl border border-brand bg-brand/10 p-3 text-left ring-1 ring-brand/40 transition; }
+
+/* abas */
+@utility tab { @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold text-muted transition hover:text-text; }
+@utility tab-on { @apply inline-flex items-center gap-1.5 rounded-md bg-panel3 px-3 py-1.5 text-sm font-semibold text-text shadow-sm transition; }
+
+@utility skeleton { background: linear-gradient(90deg, var(--color-panel2) 25%, var(--color-panel3) 50%, var(--color-panel2) 75%); background-size: 200% 100%; animation: var(--animate-shimmer); }
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a50; background-clip: padding-box; border: 2px solid transparent; }

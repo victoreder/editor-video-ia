@@ -48,7 +48,7 @@ export function PublishPanel() {
       )}
 
       <section>
-        <h3 className="mb-2 font-bold">Legenda do post</h3>
+        <h3 className="section-title mb-2">Legenda do post</h3>
         <button className="btn-ghost mb-3" disabled={busy} onClick={() => run('postpack')}>
           {pp ? 'Reescrever' : 'Escrever legenda, gancho e hashtags'}
         </button>
@@ -66,7 +66,7 @@ export function PublishPanel() {
                     copiar
                   </button>
                 </div>
-                <p className="whitespace-pre-wrap rounded-lg bg-panel2 p-2 text-xs">{pp.platforms[p]}</p>
+                <p className="surface p-2.5 text-xs whitespace-pre-wrap">{pp.platforms[p]}</p>
               </div>
             ))}
             <div>
@@ -81,8 +81,8 @@ export function PublishPanel() {
         )}
       </section>
 
-      <section>
-        <h3 className="mb-2 font-bold">Capa / thumbnail</h3>
+      <section className="border-t border-line pt-5">
+        <h3 className="section-title mb-2">Capa / thumbnail</h3>
         <p className="mb-2 text-xs text-muted">Escolhe o frame mais expressivo (rosto grande, palavra forte, longe de cortes) e coloca o gancho como título.</p>
         <button className="btn-ghost" disabled={busy} onClick={() => run('thumbnail')}>
           Gerar capa
@@ -90,8 +90,8 @@ export function PublishPanel() {
         {data?.project.thumbUrl && <img src={`${data.project.thumbUrl}${data.project.thumbUrl.includes('?') ? '&' : '?'}v=${data.project.updatedAt}`} alt="capa" className="mt-3 w-40 rounded-lg border border-line" />}
       </section>
 
-      <section>
-        <h3 className="mb-2 font-bold">Vídeo longo → Shorts</h3>
+      <section className="border-t border-line pt-5">
+        <h3 className="section-title mb-2">Vídeo longo → Shorts</h3>
         <p className="mb-2 text-xs text-muted">
           Acha os trechos de 20–60 s que funcionam sozinhos (gancho forte, sem depender de contexto, terminam num ponto) e edita cada um como um Short novo.
           {longVideo && <b className="text-key"> Você marcou este vídeo como longo.</b>}
