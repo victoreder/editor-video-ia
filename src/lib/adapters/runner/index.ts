@@ -94,8 +94,14 @@ export class VercelSandboxRunner implements Runner {
     // a instalação (minutos) e o job rodam dentro da Sandbox. O progresso vai para o banco.
     const setup = [
       'set -e',
-      // ffmpeg estático (a imagem da Sandbox não traz ffmpeg)
-      'if ! command -v ffmpeg >/dev/null; then curl -sSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar -xJ -C /tmp && sudo cp /tmp/ffmpeg-*-static/ffmpeg /tmp/ffmpeg-*-static/ffprobe /usr/local/bin/; fi',
+      // ffmpeg + ffprobe estáticos numa pasta própria (a imagem pode não trazer, ou trazer só o ffmpeg);
+      // dois espelhos, e o worker recebe os caminhos exatos
+      'export PATH=/tmp/ff:$PATH FFMPEG_PATH=/tmp/ff/ffmpeg FFPROBE_PATH=/tmp/ff/ffprobe',
+      'mkdir -p /tmp/ff',
+      'if [ ! -x /tmp/ff/ffprobe ]; then (curl -fsSL --retry 3 https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz | tar -xJ -C /tmp/ff --strip-components=2 --wildcards "*/bin/*") || (curl -fsSL --retry 3 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar -xJ -C /tmp/ff --strip-components=1); fi',
+      // se o download falhar, segue mesmo assim: o worker confere o ffmpeg e grava o erro no
+      // projeto (parar aqui deixaria o job eternamente "Na fila")
+      '(/tmp/ff/ffmpeg -version | head -1 || echo "AVISO: ffmpeg não foi baixado")',
       // bibliotecas do Chromium do Remotion e Python do rosto/recorte (opcionais: sem eles o app usa o enquadramento padrão)
       'sudo dnf install -y -q nss atk at-spi2-atk cups-libs libdrm libxkbcommon libXcomposite libXdamage libXfixes libXrandr mesa-libgbm pango alsa-lib python3-pip mesa-libGL >/dev/null 2>&1 || true',
       'pip3 install -q -r worker/requirements.txt >/dev/null 2>&1 || true',
