@@ -48,7 +48,10 @@ export class VercelSandboxRunner implements Runner {
   readonly kind = 'vercel-sandbox';
   async start(jobId: string) {
     const {Sandbox} = await import('@vercel/sandbox');
-    const repo = process.env.GIT_REPO_URL;
+    // padrão: o próprio repositório do deploy (variáveis de sistema da Vercel)
+    const repo =
+      process.env.GIT_REPO_URL ||
+      (process.env.VERCEL_GIT_PROVIDER === 'github' && process.env.VERCEL_GIT_REPO_OWNER ? `https://github.com/${process.env.VERCEL_GIT_REPO_OWNER}/${process.env.VERCEL_GIT_REPO_SLUG}.git` : '');
     if (!repo) throw new Error('defina GIT_REPO_URL para o VercelSandboxRunner');
     // repositório privado: usuário + token do GitHub (permissão de leitura)
     const auth = process.env.GIT_TOKEN ? {username: process.env.GIT_USERNAME ?? 'x-access-token', password: process.env.GIT_TOKEN} : {};
