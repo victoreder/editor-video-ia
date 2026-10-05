@@ -1,4 +1,11 @@
 referencias/
 node_modules/
 .env*
+!.env.example
 .DS_Store
+.data/
+.next/
+out/
+remotion-bundle/
+*.tsbuildinfo
+__pycache__/
